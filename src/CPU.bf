@@ -23,11 +23,13 @@ struct Bit
 	public static operator Bit (uint8 a) => .(a);
 
 	public static operator Bit(bool b) => .(b);
+
+	public static operator bool(Bit b) => b.bit;
 }
 
 struct Memory
 {
-	const uint32 MAX_MEM = 1024 * 64; // 64 Kb
+	const uint32 MAX_MEM = 64 * 1024; // 64 Kb
 	public Byte[MAX_MEM] data;
 
 	public void Initialize() mut
@@ -42,18 +44,18 @@ struct Memory
 		set mut => data[i] = value;
 	}
 
-	public void WriteWord(Word val, uint32 addr, ref uint32 cycles) mut
+	public void WriteWord(Word val, uint32 addr, ref int cycles) mut
 	{
 		//Console.WriteLine($"Writing word {val} at address {addr}...");
 		this.WriteWord(val, addr);
 		cycles -= 2;
 	}
 
-	public void WriteWord(Word val, uint32 addr) mut
+	public void WriteWord(Word val, uint32 addr) mut // Should not be used
 	{
 		//Console.WriteLine($"Writing word {val} at address {addr}...");
-		data[addr] = (Byte)val;
-		data[addr + 1] = (Byte)(val >> 8);
+		this[addr] = (Byte)val;
+		this[addr + 1] = (Byte)(val >> 8);
 	}
 }
 
@@ -66,6 +68,8 @@ class CPU
 	// 64Kb memory | 16-bit address bus | 256 byte (0x0000-0x00FF) Zero Page | System Stack (0x0100-0x01FF)
 	// 0xFFFA/B -> non-maskable interrupt handler | 0xFFFC/D -> power on reset | 0xFFFE/F BRK/interrupt request handler
 
+	public enum Register { A, X, Y }
+
 	public Word PC; // Program Counter
 	public Byte SP; // Stack Pointer // SHOULD BE BYTE
 
@@ -77,12 +81,16 @@ class CPU
 
 	// opcodes
 	public const Byte
-		INS_LDA_IM = 0xA9,  /// Load Accumulator Immediate
-		INS_LDA_ZP = 0xA5,  /// Load Accumulator Zero Page
-		INS_LDA_ZPX = 0xB5, /// Load Accumulator Zero Page X
+		INS_LDA_IM = 0xA9,   /// Load Accumulator Immediate
+		INS_LDA_ZP = 0xA5,   /// Load Accumulator Zero Page
+		INS_LDA_ZPX = 0xB5,  /// Load Accumulator Zero Page X
+		INS_LDA_ABS = 0xAD,  /// Load Accumulator Absolute
+		INS_LDA_ABSX = 0xBD, /// Load Accumulator Absolute X
+		INS_LDA_ABSY = 0xB9, /// Load Accumulator Absolute Y
+		INS_LDA_INDX = 0xA1,   /// Load Acumulator Indirect X
+		INS_LDA_INDY = 0xB1,
 
 		INS_JSR = 0x20;     /// Jump to Subroutine
-
 	
 
 	public void Reset(ref Memory mem)
@@ -93,14 +101,14 @@ class CPU
 		A = X = Y = 0;
 	}
 
-	public Byte ReadByte(ref uint32 cycles, Byte address, ref Memory mem)
+	public Byte ReadByte(ref int cycles, Word address, ref Memory mem)
 	{
 		Byte data = mem[address]; 
 		cycles--;
 		return data;
 	}
 
-	public Byte FetchByte(ref uint32 cycles, ref Memory mem) // will rework to work with ReadByte
+	public Byte FetchByte(ref int cycles, ref Memory mem) // will rework to work with ReadByte
 	{
 		Byte data = mem[this.PC]; 
 		this.PC++;
@@ -108,7 +116,15 @@ class CPU
 		return data;
 	}
 
-	public Word FetchWord(ref uint32 cycles, ref Memory mem)
+	public Word ReadWord(ref int cycles, Word address, ref Memory mem)
+	{
+		Byte lByte = ReadByte(ref cycles, address, ref mem);
+		Byte hByte = ReadByte(ref cycles, address + 1, ref mem);
+		return lByte | ((Word)hByte << 8);
+	}
+
+
+	public Word FetchWord(ref int cycles, ref Memory mem)
 	{
 		// 6502 is little endian
 		Word data = mem[this.PC]; // Low byte
@@ -131,8 +147,48 @@ class CPU
 		this.N = this.A & 0b10000000;
 	}
 
-	public void Execute(uint32 cycles, ref Memory mem)
+	public void LoadByteToRegister(Register R, Byte val)
 	{
+		switch (R)
+		{
+		case .A:
+			this.A = val;
+			this.SetLDAFlags();
+		case .X:
+			this.X = val;
+		case .Y:
+			this.Y = val;
+		}
+	}
+
+	public void FetchByteToRegister(Register R, ref int cycles, ref Memory mem)
+	{
+		Byte val = this.FetchByte(ref cycles, ref mem);
+		LoadByteToRegister(R, val);
+
+	}
+
+	// will check for page wrap
+	public void ReadByteFromMemoryToRegister(Register R, ref int cycles, ref Memory mem, Byte addr, Byte index = 0)
+	{
+		Byte fAddr = addr + index; // auto-wrap here we go
+		Byte val = ReadByte(ref cycles, fAddr, ref mem);
+		LoadByteToRegister(R, val);
+	}
+
+	public void ReadByteFromMemoryToRegister(Register R, ref int cycles, ref Memory mem, Word addr, Byte index = 0)
+	{
+		Word fAddr = addr + index;
+		if (fAddr >> 8 != addr >> 8)
+			cycles--; // fix high byte
+		Byte val = ReadByte(ref cycles, fAddr, ref mem);
+		LoadByteToRegister(R, val);
+
+	}
+
+	public Result<int, String> Execute(int cycles, ref Memory mem) // NOTE: if this function returns a negative number, there's a problem
+	{
+		int startCycles = cycles;
 		var cycles;
 		while(cycles > 0)
 		{
@@ -141,37 +197,88 @@ class CPU
 			switch(instruction)
 			{
 			case INS_LDA_IM:
-			do { // just in case i need to do stuff with scopes, doesn't add complexity
-				Byte val = this.FetchByte(ref cycles, ref mem);
-				this.A = val;
-				this.SetLDAFlags();
+			do {
+				FetchByteToRegister(.A, ref cycles, ref mem);
 			}
 
 			case INS_LDA_ZP:
 			do{
-				Byte ZeroPageAddress = this.FetchByte(ref cycles, ref mem);
-				this.A = this.ReadByte(ref cycles, ZeroPageAddress, ref mem);
-				this.SetLDAFlags();
+				ReadByteFromMemoryToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem));
 			}
 
 			case INS_LDA_ZPX:
 			do {
-				Byte ZeroPageAddress = this.FetchByte(ref cycles, ref mem);
-				ZeroPageAddress += this.X; cycles--; // cause we added
-				this.A = this.ReadByte(ref cycles, ZeroPageAddress, ref mem);
+				ReadByteFromMemoryToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem), this.X);
+				cycles--; // cause of previous addition + wrap around Zero Page
+			}
+
+			case INS_LDA_ABS:
+			do{
+				Word address = this.FetchWord(ref cycles, ref mem);
+				this.A = this.ReadByte(ref cycles, address, ref mem);
 				this.SetLDAFlags();
 			}
+
+			case INS_LDA_ABSX: // please use some functions later
+			do {
+				Word address = this.FetchWord(ref cycles, ref mem);
+				Word copy = address;
+				address += this.X;
+				if (copy >> 8 != address >> 8)
+					cycles--; // page wrap (had to fix high byte)
+
+				this.A = this.ReadByte(ref cycles, address, ref mem);
+				this.SetLDAFlags();
+			}
+
+			case INS_LDA_ABSY:
+			do {
+				Word address = this.FetchWord(ref cycles, ref mem);
+				Word copy = address;
+				address += this.Y;
+				if (copy >> 8 != address >> 8)
+					cycles--; // page wrap (had to fix high byte)
+
+				this.A = this.ReadByte(ref cycles, address, ref mem);
+				this.SetLDAFlags();
+			}
+
+			case INS_LDA_INDX:
+			do {
+				Byte zeroPageAddr = this.FetchByte(ref cycles, ref mem);
+				zeroPageAddr += this.X;
+ 				Word addr = this.ReadWord(ref cycles, zeroPageAddr, ref mem);
+				this.A = this.ReadByte(ref cycles, addr, ref mem);
+				this.SetLDAFlags();
+			}
+
+			case INS_LDA_INDY:
+			do {
+				Byte zeroPageAddr = this.FetchByte(ref cycles, ref mem);
+				Word addr = this.ReadWord(ref cycles, zeroPageAddr, ref mem);
+				Word addr_cpy = addr;
+				addr += this.Y;
+				if (addr >> 8 != addr_cpy >> 8)
+					cycles--;
+				this.A = this.ReadByte(ref cycles, addr, ref mem);
+				this.SetLDAFlags();
+			}
+
 
 			case INS_JSR:
 			do{ // absolute mode, so need 16 bits
 				Word jumpAddr = FetchWord(ref cycles, ref mem);
 				mem.WriteWord(this.PC - 1, this.SP, ref cycles);
 				this.PC = jumpAddr;
-				this.SP++;
+				this.SP += 2; // cause we wrote a word
 				cycles--;
 			}
 
+			default:
+				return .Err("Unknown Instruction");
 			}
+
 		}
+		return startCycles - cycles;
 	}
 }
