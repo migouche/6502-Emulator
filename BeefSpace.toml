@@ -1,0 +1,5 @@
+FileVersion = 1
+Projects = {CPU_6502 = {Path = "."}}
+
+[Workspace]
+StartupProject = "CPU_6502"

@@ -1,0 +1,5 @@
+FileVersion = 1
+
+[Project]
+Name = "CPU_6502"
+StartupObject = "CPU_6502.Program"
