@@ -79,6 +79,8 @@ class CPU
 
 	public Bit C, Z, I, D, B, V, N; // Processor status flags
 
+	public Memory* memory;
+
 	// opcodes
 	public const Byte
 		INS_LDA_IM = 0xA9,   /// Load Accumulator Immediate
@@ -91,6 +93,16 @@ class CPU
 		INS_LDA_INDY = 0xB1,
 
 		INS_JSR = 0x20;     /// Jump to Subroutine
+
+	/*public this
+	{
+		this.Reset();
+	}
+
+	public this(Memory* mem)
+	{
+
+	}*/
 	
 
 	public void Reset(ref Memory mem)
@@ -147,7 +159,7 @@ class CPU
 		this.N = this.A & 0b10000000;
 	}
 
-	public void LoadByteToRegister(Register R, Byte val)
+	public void LoadByteToRegister(Register R, Byte val) // should not take cycles
 	{
 		switch (R)
 		{
@@ -161,6 +173,13 @@ class CPU
 		}
 	}
 
+	public Word ReadWordFromZeroPage(ref int cycles, Byte addr, ref Memory mem, Byte index = 0)
+	{
+		var addr;
+		addr += index;
+		return this.ReadWord(ref cycles, addr, ref mem);
+	}
+
 	public void FetchByteToRegister(Register R, ref int cycles, ref Memory mem)
 	{
 		Byte val = this.FetchByte(ref cycles, ref mem);
@@ -169,14 +188,18 @@ class CPU
 	}
 
 	// will check for page wrap
-	public void ReadByteFromMemoryToRegister(Register R, ref int cycles, ref Memory mem, Byte addr, Byte index = 0)
+	public void ReadByteFromZeroPageToRegister(Register R, ref int cycles, ref Memory mem, Byte addr, Byte index = 0)
 	{
+		if (index > 0)
+		cycles--;
+
+		
 		Byte fAddr = addr + index; // auto-wrap here we go
 		Byte val = ReadByte(ref cycles, fAddr, ref mem);
 		LoadByteToRegister(R, val);
 	}
 
-	public void ReadByteFromMemoryToRegister(Register R, ref int cycles, ref Memory mem, Word addr, Byte index = 0)
+	public void ReadByteFromAbsoluteMemoryToRegister(Register R, ref int cycles, ref Memory mem, Word addr, Byte index = 0)
 	{
 		Word fAddr = addr + index;
 		if (fAddr >> 8 != addr >> 8)
@@ -203,65 +226,40 @@ class CPU
 
 			case INS_LDA_ZP:
 			do{
-				ReadByteFromMemoryToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem));
+				ReadByteFromZeroPageToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem));
 			}
 
 			case INS_LDA_ZPX:
 			do {
-				ReadByteFromMemoryToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem), this.X);
-				cycles--; // cause of previous addition + wrap around Zero Page
+				ReadByteFromZeroPageToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem), this.X);
+				//cycles--; // cause of previous addition + wrap around Zero Page
 			}
 
 			case INS_LDA_ABS:
 			do{
-				Word address = this.FetchWord(ref cycles, ref mem);
-				this.A = this.ReadByte(ref cycles, address, ref mem);
-				this.SetLDAFlags();
+				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem, FetchWord(ref cycles, ref mem));
 			}
 
 			case INS_LDA_ABSX: // please use some functions later
 			do {
-				Word address = this.FetchWord(ref cycles, ref mem);
-				Word copy = address;
-				address += this.X;
-				if (copy >> 8 != address >> 8)
-					cycles--; // page wrap (had to fix high byte)
-
-				this.A = this.ReadByte(ref cycles, address, ref mem);
-				this.SetLDAFlags();
+				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem, FetchWord(ref cycles, ref mem), this.X);
 			}
 
 			case INS_LDA_ABSY:
 			do {
-				Word address = this.FetchWord(ref cycles, ref mem);
-				Word copy = address;
-				address += this.Y;
-				if (copy >> 8 != address >> 8)
-					cycles--; // page wrap (had to fix high byte)
-
-				this.A = this.ReadByte(ref cycles, address, ref mem);
-				this.SetLDAFlags();
+				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem, FetchWord(ref cycles, ref mem), this.Y);
 			}
 
 			case INS_LDA_INDX:
 			do {
-				Byte zeroPageAddr = this.FetchByte(ref cycles, ref mem);
-				zeroPageAddr += this.X;
- 				Word addr = this.ReadWord(ref cycles, zeroPageAddr, ref mem);
-				this.A = this.ReadByte(ref cycles, addr, ref mem);
-				this.SetLDAFlags();
+				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem,
+					this.ReadWordFromZeroPage(ref cycles, this.FetchByte(ref cycles, ref mem), ref mem, this.X));
 			}
 
 			case INS_LDA_INDY:
 			do {
-				Byte zeroPageAddr = this.FetchByte(ref cycles, ref mem);
-				Word addr = this.ReadWord(ref cycles, zeroPageAddr, ref mem);
-				Word addr_cpy = addr;
-				addr += this.Y;
-				if (addr >> 8 != addr_cpy >> 8)
-					cycles--;
-				this.A = this.ReadByte(ref cycles, addr, ref mem);
-				this.SetLDAFlags();
+				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem,
+					this.ReadWordFromZeroPage(ref cycles, this.FetchByte(ref cycles, ref mem), ref mem), this.Y);
 			}
 
 
