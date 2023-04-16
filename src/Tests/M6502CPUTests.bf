@@ -7,10 +7,11 @@ class M6502CPUTests
 	[Test]
 	public static void Test0Cycles()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
+		CPU cpu = scope CPU(&mem);
+
 		int cyclesNeeded = 0;
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 		Test.Assert(c == cyclesNeeded);
 	}
 }

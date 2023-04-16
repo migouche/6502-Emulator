@@ -16,16 +16,16 @@ class M5302LDATests
 	[Test]
 	public static void LDAImmediate()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 
 		mem[0xFFFC] = CPU.INS_LDA_IM;
 		mem[0xFFFD] = 0x84;
 
 		int cyclesNeeded = 2;
 
-		int cycles = cpu.Execute(cyclesNeeded, ref mem);
+		int cycles = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x84);
 		AssertFlags(cpu, false, true);
@@ -35,7 +35,7 @@ class M5302LDATests
 		mem[0xFFFF] = 0;
 
 
-		cycles = cpu.Execute(cyclesNeeded, ref mem);
+		cycles = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0);
 		AssertFlags(cpu, true, false);
@@ -45,16 +45,16 @@ class M5302LDATests
 	[Test]
 	public static void LDAZero()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 
 		mem[0xFFFC] = CPU.INS_LDA_ZP;
 		mem[0xFFFD] = 0x42;
 		mem[0x0042] = 0x37;
 
 		int cyclesNeeded = 3;
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -65,9 +65,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAZeroX()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.X = 5;
 
 		mem[0xFFFC] = CPU.INS_LDA_ZPX;
@@ -77,7 +77,7 @@ class M5302LDATests
 		int cyclesNeeded = 4;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -88,9 +88,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAZeroXWrap()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.X = 0xFF;
 
 		mem[0xFFFC] = CPU.INS_LDA_ZPX;
@@ -99,7 +99,7 @@ class M5302LDATests
 
 		int cyclesNeeded = 4;
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -109,9 +109,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAAbs()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 
 
 		mem[0xFFFC] = CPU.INS_LDA_ABS;
@@ -122,7 +122,7 @@ class M5302LDATests
 		int cyclesNeeded = 4;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -132,9 +132,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAAbsX()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.X = 0x92;
 		
 		mem[0xFFFC] = CPU.INS_LDA_ABSX;
@@ -145,7 +145,7 @@ class M5302LDATests
 		int cyclesNeeded = 4;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -155,9 +155,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAAbsXWrap()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.X = 0xFF;
 		
 		mem[0xFFFC] = CPU.INS_LDA_ABSX;
@@ -168,7 +168,7 @@ class M5302LDATests
 		int cyclesNeeded = 5;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -178,9 +178,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAAbyX()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.Y = 0x92;
 		
 		mem[0xFFFC] = CPU.INS_LDA_ABSY;
@@ -191,7 +191,7 @@ class M5302LDATests
 		int cyclesNeeded = 4;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -201,9 +201,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAAbsYWrap()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.Y = 0xFF;
 		
 		mem[0xFFFC] = CPU.INS_LDA_ABSY;
@@ -214,7 +214,7 @@ class M5302LDATests
 		int cyclesNeeded = 5;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -224,9 +224,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAIndirectX()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.X = 0x04;
 		
 		mem[0xFFFC] = CPU.INS_LDA_INDX;
@@ -240,7 +240,7 @@ class M5302LDATests
 		int cyclesNeeded = 5;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -250,9 +250,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAIndirectY()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.Y = 0x04;
 		
 		mem[0xFFFC] = CPU.INS_LDA_INDY;
@@ -265,7 +265,7 @@ class M5302LDATests
 		int cyclesNeeded = 5;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);
@@ -275,9 +275,9 @@ class M5302LDATests
 	[Test]
 	public static void LDAIndirectYWrap()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
 		cpu.Y = 0xff;
 
 		mem[0xFFFC] = CPU.INS_LDA_INDY;
@@ -291,7 +291,7 @@ class M5302LDATests
 		int cyclesNeeded = 6;
 
 
-		int c = cpu.Execute(cyclesNeeded, ref mem);
+		int c = cpu.Execute(cyclesNeeded);
 
 		Test.Assert(cpu.A == 0x37);
 		Test.Assert(c == cyclesNeeded);

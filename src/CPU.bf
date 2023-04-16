@@ -80,70 +80,102 @@ class CPU
 	public Bit C, Z, I, D, B, V, N; // Processor status flags
 
 	public Memory* memory;
+	public int cycles;
+
 
 	// opcodes
 	public const Byte
+
+
 		INS_LDA_IM = 0xA9,   /// Load Accumulator Immediate
 		INS_LDA_ZP = 0xA5,   /// Load Accumulator Zero Page
 		INS_LDA_ZPX = 0xB5,  /// Load Accumulator Zero Page X
 		INS_LDA_ABS = 0xAD,  /// Load Accumulator Absolute
 		INS_LDA_ABSX = 0xBD, /// Load Accumulator Absolute X
 		INS_LDA_ABSY = 0xB9, /// Load Accumulator Absolute Y
-		INS_LDA_INDX = 0xA1,   /// Load Acumulator Indirect X
-		INS_LDA_INDY = 0xB1,
+		INS_LDA_INDX = 0xA1, /// Load Accumulator Indirect X
+		INS_LDA_INDY = 0xB1, /// Load Accumulator Indirect Y
+
+		INS_LDX_IM = 0xA2,   /// Load X Immediate
+		INS_LDX_ZP = 0xA6,   /// Load X Zero Page
+		INS_LDX_ZPY = 0xB6,  /// Load X Zero Page Y
+		INS_LDX_ABS = 0xAE,  /// Load X Absolute
+		INS_LDX_ABSY = 0xBE, /// Load X Absolute Y
+
+		INS_STA_ZP = 0x85,   /// Store Accumulator Zero Page
+		INS_STA_ZPX = 0x95,  /// Store Accumulator Zero Page X
+		INS_STA_ABS = 0x8D,  /// Store Accumulator Absolute
+		INS_STA_ABSX = 0x9D, /// Store Accumulator Absolute X
+		INS_STA_ABSY = 0x99, /// Store Accumulator Absolute Y
+		INS_STA_INDX = 0x81, /// Store Accumulator Indirect X
+		INS_STA_INDY = 0x91, /// Store Accumulator Indirect Y
 
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
-	/*public this
+	public function Result<void, String>(CPU_6502.CPU this)[] functions = new function Result<void, String>(CPU_6502.CPU this)[0xFF];
+
+
+	public this
 	{
 		this.Reset();
+		/*for (int i < 0xFF)
+		{
+			this.functions[i] =  (CPU_6502.CPU this) => .Err("Unknown Instruction");
+		}
+
+		this.functions[INS_LDA_IM] = (CPU_6502.CPU this) => FetchByteToRegister(.A);*/
+
 	}
 
 	public this(Memory* mem)
 	{
+		this.memory = mem;
+	}
 
-	}*/
-	
+	public ~this()
+	{
+		delete this.functions;
+	}
 
-	public void Reset(ref Memory mem)
+	public void Reset()
 	{ // should code this but we emulate for now
 		PC = 0xFFFC; // reset vector
-		SP = (Byte)0x0100;
+		SP = (Byte)0x0100; // 0x100 = 0x0 in 8-bit right?? gotta check this
 		C = Z = I = D = B = V = N = 0;
 		A = X = Y = 0;
 	}
 
-	public Byte ReadByte(ref int cycles, Word address, ref Memory mem)
+	public Byte ReadByte(Word address)
 	{
-		Byte data = mem[address]; 
-		cycles--;
+		Byte data = (*this.memory)[address]; 
+		this.cycles--;
 		return data;
 	}
 
-	public Byte FetchByte(ref int cycles, ref Memory mem) // will rework to work with ReadByte
+	public Byte FetchByte() // will rework to work with ReadByte
 	{
-		Byte data = mem[this.PC]; 
+		Byte data = (*this.memory)[this.PC]; 
 		this.PC++;
 		cycles--;
 		return data;
 	}
 
-	public Word ReadWord(ref int cycles, Word address, ref Memory mem)
+	public Word ReadWord(Word address)
 	{
-		Byte lByte = ReadByte(ref cycles, address, ref mem);
-		Byte hByte = ReadByte(ref cycles, address + 1, ref mem);
+		Byte lByte = ReadByte(address);
+		Byte hByte = ReadByte(address + 1);
 		return lByte | ((Word)hByte << 8);
 	}
 
 
-	public Word FetchWord(ref int cycles, ref Memory mem)
+	public Word FetchWord()
 	{
 		// 6502 is little endian
-		Word data = mem[this.PC]; // Low byte
+		Word data = (*this.memory)[this.PC]; // Low byte
 		this.PC++;
 		cycles--;
 
-		data |= ((Word)mem[this.PC]) << 8; // High byte
+		data |= ((Word)(*this.memory)[this.PC]) << 8; // High byte
 		this.PC++;
 		cycles--;
 
@@ -159,7 +191,13 @@ class CPU
 		this.N = this.A & 0b10000000;
 	}
 
-	public void LoadByteToRegister(Register R, Byte val) // should not take cycles
+	void SetLDXFlags()
+	{
+		this.Z = this.X == 0;
+		this.N = this.X & 0b10000000;
+	}
+
+	public void LoadValueToRegister(Register R, Byte val) // should not take cycles
 	{
 		switch (R)
 		{
@@ -168,115 +206,219 @@ class CPU
 			this.SetLDAFlags();
 		case .X:
 			this.X = val;
+			this.SetLDXFlags();
 		case .Y:
 			this.Y = val;
 		}
 	}
 
-	public Word ReadWordFromZeroPage(ref int cycles, Byte addr, ref Memory mem, Byte index = 0)
+	public Word ReadWordFromZeroPage(Byte addr, Byte index = 0)
 	{
 		var addr;
 		addr += index;
-		return this.ReadWord(ref cycles, addr, ref mem);
+		return this.ReadWord(addr);
 	}
 
-	public void FetchByteToRegister(Register R, ref int cycles, ref Memory mem)
+	public void FetchByteToRegister(Register R)
 	{
-		Byte val = this.FetchByte(ref cycles, ref mem);
-		LoadByteToRegister(R, val);
+		Byte val = this.FetchByte();
+		LoadValueToRegister(R, val);
 
 	}
 
 	// will check for page wrap
-	public void ReadByteFromZeroPageToRegister(Register R, ref int cycles, ref Memory mem, Byte addr, Byte index = 0)
+	public void LoadByteFromZeroPageToRegister(Register R, Byte addr, Byte index = 0)
 	{
 		if (index > 0)
 		cycles--;
 
 		
 		Byte fAddr = addr + index; // auto-wrap here we go
-		Byte val = ReadByte(ref cycles, fAddr, ref mem);
-		LoadByteToRegister(R, val);
+		Byte val = ReadByte(fAddr);
+		LoadValueToRegister(R, val);
 	}
 
-	public void ReadByteFromAbsoluteMemoryToRegister(Register R, ref int cycles, ref Memory mem, Word addr, Byte index = 0)
+	public void LoadByteFromAbsoluteMemoryToRegister(Register R, Word addr, Byte index = 0)
 	{
 		Word fAddr = addr + index;
 		if (fAddr >> 8 != addr >> 8)
 			cycles--; // fix high byte
-		Byte val = ReadByte(ref cycles, fAddr, ref mem);
-		LoadByteToRegister(R, val);
-
+		Byte val = ReadByte(fAddr);
+		LoadValueToRegister(R, val);
 	}
 
-	public Result<int, String> Execute(int cycles, ref Memory mem) // NOTE: if this function returns a negative number, there's a problem
+
+
+	public void StoreRegisterToZeroPage(Register R, Byte addr, Byte index = 0)
+	{
+		if (index > 0)
+			this.cycles--;
+		Byte finalAddr = addr + index; // wraps automatically
+
+		switch(R)
+		{
+		case .A:
+			(*this.memory)[finalAddr] = this.A;
+		case .X:
+			(*this.memory)[finalAddr] = this.X;
+		case .Y:
+			(*this.memory)[finalAddr] = this.Y;
+		}
+		this.cycles--;
+	}
+
+	public void StoreRegisterToMemory(Register R, Word addr, Byte index = 0)
+	{
+		if (index > 0)
+			this.cycles--; // this one is for the sum
+		Word finalAddr = addr + index;
+		switch(R)
+		{
+		case .A:
+			(*this.memory)[finalAddr] = this.A;
+		case .X:
+			(*this.memory)[finalAddr] = this.X;
+		case .Y:
+			(*this.memory)[finalAddr] = this.Y;
+		}
+		this.cycles--; // this one is for the write
+	}
+
+	public Result<int, String> Execute(int cycles) // NOTE: if this function returns a negative number, there's a problem
 	{
 		int startCycles = cycles;
-		var cycles;
-		while(cycles > 0)
+		this.cycles = cycles;
+		while(this.cycles > 0)
 		{
-			Byte instruction = this.FetchByte(ref cycles, ref mem);
+			Byte instruction = this.FetchByte();
 
 			switch(instruction)
 			{
+
+			// ----- Load Accumulator ------
 			case INS_LDA_IM:
 			do {
-				FetchByteToRegister(.A, ref cycles, ref mem);
+				FetchByteToRegister(.A);
 			}
 
 			case INS_LDA_ZP:
 			do{
-				ReadByteFromZeroPageToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem));
+				this.LoadByteFromZeroPageToRegister(.A, this.FetchByte());
 			}
 
 			case INS_LDA_ZPX:
 			do {
-				ReadByteFromZeroPageToRegister(.A, ref cycles, ref mem, this.FetchByte(ref cycles, ref mem), this.X);
+				this.LoadByteFromZeroPageToRegister(.A, this.FetchByte(), this.X);
 				//cycles--; // cause of previous addition + wrap around Zero Page
 			}
 
 			case INS_LDA_ABS:
 			do{
-				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem, FetchWord(ref cycles, ref mem));
+				this.LoadByteFromAbsoluteMemoryToRegister(.A, FetchWord());
 			}
 
 			case INS_LDA_ABSX: // please use some functions later
 			do {
-				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem, FetchWord(ref cycles, ref mem), this.X);
+				this.LoadByteFromAbsoluteMemoryToRegister(.A, FetchWord(), this.X);
 			}
 
 			case INS_LDA_ABSY:
 			do {
-				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem, FetchWord(ref cycles, ref mem), this.Y);
+				this.LoadByteFromAbsoluteMemoryToRegister(.A, FetchWord(), this.Y);
 			}
 
 			case INS_LDA_INDX:
 			do {
-				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem,
-					this.ReadWordFromZeroPage(ref cycles, this.FetchByte(ref cycles, ref mem), ref mem, this.X));
+				this.LoadByteFromAbsoluteMemoryToRegister(.A, this.ReadWordFromZeroPage(this.FetchByte(), this.X));
 			}
 
 			case INS_LDA_INDY:
 			do {
-				this.ReadByteFromAbsoluteMemoryToRegister(.A, ref cycles, ref mem,
-					this.ReadWordFromZeroPage(ref cycles, this.FetchByte(ref cycles, ref mem), ref mem), this.Y);
+				this.LoadByteFromAbsoluteMemoryToRegister(.A, this.ReadWordFromZeroPage(this.FetchByte()), this.Y);
+			}
+
+			// ------ Load X Register ------
+
+			case INS_LDX_IM:
+			do {
+				this.FetchByteToRegister(.X);
+			}
+
+			case INS_LDX_ZP:
+			do {
+				this.LoadByteFromZeroPageToRegister(.X, this.FetchByte());
+			}
+
+			case INS_LDX_ZPY:
+			do {
+				this.LoadByteFromZeroPageToRegister(.X, this.FetchByte(), this.Y);
+			}
+
+			case INS_LDX_ABS:
+			do{
+				this.LoadByteFromAbsoluteMemoryToRegister(.X, FetchWord());
+			}
+
+			case INS_LDX_ABSY:
+			do {
+				this.LoadByteFromAbsoluteMemoryToRegister(.X, FetchWord(), this.Y);
 			}
 
 
+			// ------ Store Accumulator ------
+
+			case INS_STA_ZP:
+			do {
+				this.StoreRegisterToZeroPage(.A, this.FetchByte());
+			}
+
+			case INS_STA_ZPX:
+			do {
+				this.StoreRegisterToZeroPage(.A, this.FetchByte(), this.X);
+			}
+
+			case INS_STA_ABS:
+			do {
+				this.StoreRegisterToMemory(.A, this.FetchWord());
+			}
+
+			case INS_STA_ABSX:
+			do {
+				this.StoreRegisterToMemory(.A, this.FetchWord(), this.X);
+			}
+
+			case INS_STA_ABSY:
+			do {
+				this.StoreRegisterToMemory(.A, this.FetchWord(), this.Y);
+			}
+
+			case INS_STA_INDX:
+			do {
+				this.cycles--; // you may wanna check more about this clock
+				this.StoreRegisterToMemory(.A, this.ReadWord(this.FetchByte() + this.X));
+			}
+
+			case INS_STA_INDY:
+			do {
+				this.StoreRegisterToMemory(.A, this.ReadWord(this.FetchByte()), this.Y);
+			}
+
+			// ------ Other ------- xd
 			case INS_JSR:
 			do{ // absolute mode, so need 16 bits
-				Word jumpAddr = FetchWord(ref cycles, ref mem);
-				mem.WriteWord(this.PC - 1, this.SP, ref cycles);
+				Word jumpAddr = FetchWord();
+				this.memory.WriteWord(this.PC - 1, this.SP, ref this.cycles);
 				this.PC = jumpAddr;
 				this.SP += 2; // cause we wrote a word
-				cycles--;
+				this.cycles--;
 			}
 
 			default:
-				return .Err("Unknown Instruction");
+				Console.WriteLine($"Unknown Instruction: {instruction}");
+				return .Err($"Unknown Instruction");
 			}
 
 		}
-		return startCycles - cycles;
+		return startCycles - this.cycles;
 	}
 }

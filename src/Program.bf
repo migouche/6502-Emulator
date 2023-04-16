@@ -7,9 +7,10 @@ class Program
 
 	static void Main()
 	{
-		CPU cpu = scope CPU();
 		Memory mem = .();
-		cpu.Reset(ref mem);
+		CPU cpu = scope CPU(&mem);
+
+		cpu.Reset();
 
 
 		// hard-coding a program
@@ -21,7 +22,7 @@ class Program
 		mem[0x4243] = 0x84;
 		Console.WriteLine(cpu.A);
 
-		cpu.Execute(8, ref mem);
+		cpu.Execute(8);
 
 		Console.WriteLine(cpu.A);
 
