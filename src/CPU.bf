@@ -102,6 +102,12 @@ class CPU
 		INS_LDX_ABS = 0xAE,  /// Load X Absolute
 		INS_LDX_ABSY = 0xBE, /// Load X Absolute Y
 
+		INS_LDY_IM = 0xA0,   /// Load Y Immediate
+		INS_LDY_ZP = 0xA4,   /// Load Y Zero Page
+		INS_LDY_ZPX = 0xB4,  /// Load Y Zero Page X
+		INS_LDY_ABS = 0xAC,  /// Load Y Absolute
+		INS_LDY_ABSX = 0xBC, /// Load Y Absolute X
+
 		INS_STA_ZP = 0x85,   /// Store Accumulator Zero Page
 		INS_STA_ZPX = 0x95,  /// Store Accumulator Zero Page X
 		INS_STA_ABS = 0x8D,  /// Store Accumulator Absolute
@@ -197,6 +203,14 @@ class CPU
 		this.N = this.X & 0b10000000;
 	}
 
+	void SetLDYFlags()
+	{
+		this.Z = this.Y == 0;
+		this.N = this.Y & 0b10000000;
+	}
+
+
+
 	public void LoadValueToRegister(Register R, Byte val) // should not take cycles
 	{
 		switch (R)
@@ -209,6 +223,7 @@ class CPU
 			this.SetLDXFlags();
 		case .Y:
 			this.Y = val;
+			this.SetLDYFlags();
 		}
 	}
 
@@ -364,6 +379,32 @@ class CPU
 				this.LoadByteFromAbsoluteMemoryToRegister(.X, FetchWord(), this.Y);
 			}
 
+			// ----- Load Y Register ------
+			
+			case INS_LDY_IM:
+			do {
+				this.FetchByteToRegister(.Y);
+			}
+
+			case INS_LDY_ZP:
+			do {
+				this.LoadByteFromZeroPageToRegister(.Y, this.FetchByte());
+			}
+
+			case INS_LDY_ZPX:
+			do {
+				this.LoadByteFromZeroPageToRegister(.Y, this.FetchByte(), this.X);
+			}
+
+			case INS_LDY_ABS:
+			do{
+				this.LoadByteFromAbsoluteMemoryToRegister(.Y, FetchWord());
+			}
+
+			case INS_LDY_ABSX:
+			do {
+				this.LoadByteFromAbsoluteMemoryToRegister(.Y, FetchWord(), this.X);
+			}
 
 			// ------ Store Accumulator ------
 
