@@ -116,6 +116,30 @@ class CPU
 		INS_STA_INDX = 0x81, /// Store Accumulator Indirect X
 		INS_STA_INDY = 0x91, /// Store Accumulator Indirect Y
 
+		INS_STX_ZP = 0x86,   /// Store X Zero Page
+		INS_STX_ZPY = 0x96,  /// Store X Zero Page Y
+		INS_STX_ABS = 0x8E,  /// Store X Absolute
+
+		INS_STY_ZP = 0x84,   /// Store Y Zero Page
+		INS_STY_ZPX = 0x94,  /// Store Y Zero Page X
+		INS_STY_ABS = 0x8C,  /// Store Y Absolute
+
+		INS_TAX = 0xAA,      /// Transfer A to X
+		INS_TXA = 0x8A,      /// Transfer X to A
+		INS_TAY = 0xA8,      /// Transfer A to Y
+		INS_TYA = 0x98,		 /// Transfer Y to A
+		INS_TXS = 0x9A,		 /// Transfer X to Stack Pointer
+		INS_TSX = 0xBA,		 /// Transfer Stack Pointer to A
+
+		INS_AND_IM = 0x29,   /// Logical AND Immediate
+		INS_AND_ZP = 0x25,   /// Logical AND Zero Page
+		INS_AND_ZPX = 0x35,  /// Logical AND Zero Page X
+		INS_AND_ABS = 0x2D,  /// Logical AND Absolute
+		INS_AND_ABSX = 0x3D, /// Logical AND Absolute X
+		INS_AND_ABSY = 0x39, /// Logical AND Absolute Y
+		INS_AND_INDX = 0x21, /// Logical AND Indirect X
+		INS_AND_INDY = 0x21, /// Logical AND Indirect Y
+
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
 	public function Result<void, String>(CPU_6502.CPU this)[] functions = new function Result<void, String>(CPU_6502.CPU this)[0xFF];
@@ -166,10 +190,13 @@ class CPU
 		return data;
 	}
 
-	public Word ReadWord(Word address)
+	public Word ReadWord(Word address, Byte index = 0)
 	{
-		Byte lByte = ReadByte(address);
-		Byte hByte = ReadByte(address + 1);
+		if (index > 0)
+			cycles--;
+
+		Byte lByte = ReadByte(address + index);
+		Byte hByte = ReadByte(address + index + 1);
 		return lByte | ((Word)hByte << 8);
 	}
 
@@ -190,23 +217,20 @@ class CPU
 		return data;
 	}
 
-
-	void SetLDAFlags()
+	void SetLoadFlags(Register R)
 	{
-		this.Z = this.A == 0;
-		this.N = this.A & 0b10000000;
-	}
-
-	void SetLDXFlags()
-	{
-		this.Z = this.X == 0;
-		this.N = this.X & 0b10000000;
-	}
-
-	void SetLDYFlags()
-	{
-		this.Z = this.Y == 0;
-		this.N = this.Y & 0b10000000;
+		Byte val;
+		switch(R)
+		{
+		case .A:
+			val = this.A;
+		case .X:
+			val = this.X;
+		case .Y:
+			val = this.Y;
+		}
+		this.Z = val == 0;
+		this.N = val & 0b10000000;
 	}
 
 
@@ -217,14 +241,12 @@ class CPU
 		{
 		case .A:
 			this.A = val;
-			this.SetLDAFlags();
 		case .X:
 			this.X = val;
-			this.SetLDXFlags();
 		case .Y:
 			this.Y = val;
-			this.SetLDYFlags();
 		}
+		SetLoadFlags(R);
 	}
 
 	public Word ReadWordFromZeroPage(Byte addr, Byte index = 0)
@@ -356,7 +378,7 @@ class CPU
 
 			case INS_LDX_IM:
 			do {
-				this.FetchByteToRegister(.X);
+				this.LoadValueToRegister(.X, this.FetchByte());
 			}
 
 			case INS_LDX_ZP:
@@ -435,14 +457,87 @@ class CPU
 
 			case INS_STA_INDX:
 			do {
-				this.cycles--; // you may wanna check more about this clock
-				this.StoreRegisterToMemory(.A, this.ReadWord(this.FetchByte() + this.X));
+
+				this.StoreRegisterToMemory(.A, this.ReadWord(this.FetchByte(), this.X));
 			}
 
 			case INS_STA_INDY:
 			do {
 				this.StoreRegisterToMemory(.A, this.ReadWord(this.FetchByte()), this.Y);
 			}
+
+			// ------ Store X Register ----
+
+			case INS_STX_ZP:
+			do {
+				this.StoreRegisterToZeroPage(.X, this.FetchByte());
+			}
+
+			case INS_STX_ZPY:
+			do {
+				this.StoreRegisterToZeroPage(.X, this.FetchByte(), this.Y);
+			}
+
+			case INS_STX_ABS:
+			do {
+				this.StoreRegisterToMemory(.X, this.FetchWord());
+			}
+
+			// ------ Store Y Register ------
+
+			case INS_STY_ZP:
+			do {
+				this.StoreRegisterToZeroPage(.Y, this.FetchByte());
+			}
+
+			case INS_STY_ZPX:
+			do {
+				this.StoreRegisterToZeroPage(.Y, this.FetchByte(), this.X);
+			}
+
+			case INS_STY_ABS:
+			do {
+				this.StoreRegisterToMemory(.Y, this.FetchWord());
+			}
+
+			// ------ Register Transfers --------
+
+			case INS_TXA:
+			do {
+				this.LoadValueToRegister(.A, this.X);
+				this.cycles--;
+			}
+
+			case INS_TAX:
+			do {
+				this.LoadValueToRegister(.X, this.A);
+				this.cycles--;
+			}
+
+			case INS_TAY:
+			do {
+				this.LoadValueToRegister(.Y, this.A);
+				this.cycles--;
+			}
+
+			case INS_TYA:
+			do {
+				this.LoadValueToRegister(.A, this.Y);
+				this.cycles--;
+			}
+
+			case INS_TXS:
+			do {
+				this.SP = this.X;
+				this.cycles--;
+			}
+
+			case INS_TSX:
+			do {
+				this.LoadValueToRegister(.X, this.SP);
+				this.cycles--;
+			}
+
 
 			// ------ Other ------- xd
 			case INS_JSR:
