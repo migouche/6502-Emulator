@@ -1,14 +1,15 @@
 using System;
 
-namespace CPU_6502;
+namespace CPU_6502.Tests;
+
 
 class M5302LDATests
 {
 
 	public static void AssertFlags (CPU cpu, bool Z, bool N)
 	{
-		Test.Assert(cpu.Z == Z);
-		Test.Assert(cpu.N == N);
+		Test.AssertEq(cpu.Z, Z);
+		Test.AssertEq(cpu.N, N);
 		// all other should be zero
 		Test.Assert(!(cpu.C || cpu.I || cpu.D || cpu.B || cpu.V));
 	}
@@ -27,9 +28,9 @@ class M5302LDATests
 
 		int cycles = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x84);
+		Test.AssertEq(cpu.A, 0x84);
 		AssertFlags(cpu, false, true);
-		Test.Assert(cyclesNeeded == cycles);
+		Test.AssertEq(cyclesNeeded, cycles);
 
 		mem[0xFFFE] = CPU.INS_LDA_IM;
 		mem[0xFFFF] = 0;
@@ -37,9 +38,9 @@ class M5302LDATests
 
 		cycles = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0);
+		Test.AssertEq(cpu.A, 0);
 		AssertFlags(cpu, true, false);
-		Test.Assert(cyclesNeeded == cycles);
+		Test.AssertEq(cyclesNeeded, cycles);
 	}
 
 	[Test]
@@ -56,8 +57,8 @@ class M5302LDATests
 		int cyclesNeeded = 3;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 		
 	}
@@ -79,8 +80,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 		
 	}
@@ -101,8 +102,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -124,8 +125,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -147,8 +148,9 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -170,8 +172,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -193,8 +195,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -216,8 +218,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -242,8 +244,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -267,8 +269,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -293,8 +295,8 @@ class M5302LDATests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 }

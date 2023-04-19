@@ -6,8 +6,8 @@ class M6502LDYTests
 {
 	public static void AssertFlags (CPU cpu, bool Z, bool N)
 	{
-		Test.Assert(cpu.Z == Z);
-		Test.Assert(cpu.N == N);
+		Test.AssertEq(cpu.Z, Z);
+		Test.AssertEq(cpu.N, N);
 		// all other should be zero
 		Test.Assert(!(cpu.C || cpu.I || cpu.D || cpu.B || cpu.V));
 	}
@@ -27,9 +27,9 @@ class M6502LDYTests
 
 		int cycles = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0x84);
+		Test.AssertEq(cpu.Y, 0x84);
 		AssertFlags(cpu, false, true);
-		Test.Assert(cyclesNeeded == cycles);
+		Test.AssertEq(cyclesNeeded, cycles);
 
 		mem[0xFFFE] = CPU.INS_LDY_IM;
 		mem[0xFFFF] = 0;
@@ -37,9 +37,9 @@ class M6502LDYTests
 
 		cycles = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0);
+		Test.AssertEq(cpu.Y, 0);
 		AssertFlags(cpu, true, false);
-		Test.Assert(cyclesNeeded == cycles);
+		Test.AssertEq(cyclesNeeded, cycles);
 	}
 
 	[Test]
@@ -56,8 +56,8 @@ class M6502LDYTests
 		int cyclesNeeded = 3;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -78,8 +78,8 @@ class M6502LDYTests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -99,8 +99,8 @@ class M6502LDYTests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -122,8 +122,8 @@ class M6502LDYTests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -145,8 +145,8 @@ class M6502LDYTests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 
@@ -168,8 +168,8 @@ class M6502LDYTests
 
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == 0x37);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, 0x37);
+		Test.AssertEq(c, cyclesNeeded);
 		AssertFlags(cpu, false, false);
 	}
 }

@@ -18,8 +18,8 @@ class M6502STATests
 		int cyclesNeeded = 3;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == mem[0x15]);
-		Test.Assert(cyclesNeeded == c);
+		Test.AssertEq(cpu.A, mem[0x15]);
+		Test.AssertEq(cyclesNeeded, c);
 	}
 
 	[Test]
@@ -36,8 +36,8 @@ class M6502STATests
 		int cyclesNeeded = 4;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == mem[0x15 + cpu.X]);
-		Test.Assert(cyclesNeeded == c);
+		Test.AssertEq(cpu.A, mem[0x15 + cpu.X]);
+		Test.AssertEq(cyclesNeeded, c);
 	}
 
 	[Test]
@@ -54,8 +54,8 @@ class M6502STATests
 		int cyclesNeeded = 4;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == mem[0x4342]);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, mem[0x4342]);
+		Test.AssertEq(c, cyclesNeeded);
 	}
 
 	[Test]
@@ -73,8 +73,8 @@ class M6502STATests
 		int cyclesNeeded = 5;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == mem[0x4342 + cpu.X]);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, mem[0x4342 + cpu.X]);
+		Test.AssertEq(c, cyclesNeeded);
 	}
 
 	[Test]
@@ -92,8 +92,8 @@ class M6502STATests
 		int cyclesNeeded = 5;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == mem[0x4342 + cpu.Y]);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, mem[0x4342 + cpu.Y]);
+		Test.AssertEq(c, cyclesNeeded);
 	}
 
 	[Test]
@@ -112,8 +112,8 @@ class M6502STATests
 		int cyclesNeeded = 6;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == mem[0x8323]);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, mem[0x8323]);
+		Test.AssertEq(c, cyclesNeeded);
 	}
 
 	[Test]
@@ -132,8 +132,8 @@ class M6502STATests
 		int cyclesNeeded = 6;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.A == mem[0x8323 + cpu.Y]);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.A, mem[0x8323 + cpu.Y]);
+		Test.AssertEq(c, cyclesNeeded);
 	}
 
 }

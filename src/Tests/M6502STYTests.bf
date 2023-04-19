@@ -18,8 +18,8 @@ class M6502STYTests
 		int cyclesNeeded = 3;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == mem[0x15]);
-		Test.Assert(cyclesNeeded == c);
+		Test.AssertEq(cpu.Y, mem[0x15]);
+		Test.AssertEq(cyclesNeeded, c);
 	}
 
 	[Test]
@@ -36,8 +36,8 @@ class M6502STYTests
 		int cyclesNeeded = 4;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == mem[0x15 + cpu.X]);
-		Test.Assert(cyclesNeeded == c);
+		Test.AssertEq(cpu.Y, mem[0x15 + cpu.X]);
+		Test.AssertEq(cyclesNeeded, c);
 	}
 
 	[Test]
@@ -54,8 +54,8 @@ class M6502STYTests
 		int cyclesNeeded = 4;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == mem[0x4342]);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, mem[0x4342]);
+		Test.AssertEq(c, cyclesNeeded);
 	}
 
 }

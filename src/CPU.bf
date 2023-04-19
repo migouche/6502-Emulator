@@ -5,7 +5,7 @@ namespace CPU_6502;
 typealias Byte = uint8;
 typealias Word = uint16;
 
-struct Bit
+struct Bit: IFormattable
 {
 	public bool bit;
 
@@ -25,6 +25,12 @@ struct Bit
 	public static operator Bit(bool b) => .(b);
 
 	public static operator bool(Bit b) => b.bit;
+
+	public void ToString(String outString, String format, IFormatProvider formatProvider)
+	{
+		uint8 v = bit ? 1: 0;
+		v.ToString(outString, format, formatProvider);
+	}
 }
 
 struct Memory
@@ -69,6 +75,21 @@ class CPU
 	// 0xFFFA/B -> non-maskable interrupt handler | 0xFFFC/D -> power on reset | 0xFFFE/F BRK/interrupt request handler
 
 	public enum Register { A, X, Y }
+	public enum LoadAdressingMode {
+		case Immediate;
+		case ZeroPage(Byte index);
+		case Absolute(Byte index);
+		case IndirectX;
+		case IndirectY;
+		 }
+
+	public enum StoreAdressingMode {
+		case ZeroPage(Byte index);
+		case Absolute(Byte index);
+		case IndirectX;
+		case IndirectY;
+	 }
+
 
 	public Word PC; // Program Counter
 	public Byte SP; // Stack Pointer // SHOULD BE BYTE
@@ -142,29 +163,76 @@ class CPU
 
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
-	public function Result<void, String>(CPU_6502.CPU this)[] functions = new function Result<void, String>(CPU_6502.CPU this)[0xFF];
+	public function Result<void, String>(CPU)[] instructions = new function Result<void, String>(CPU)[0xFF];
+
 
 
 	public this
 	{
 		this.Reset();
-		/*for (int i < 0xFF)
+
+
+		for (int i < 0xFF)
 		{
-			this.functions[i] =  (CPU_6502.CPU this) => .Err("Unknown Instruction");
+			instructions[i] =  (_) => .Err("Unknown Instruction");
 		}
 
-		this.functions[INS_LDA_IM] = (CPU_6502.CPU this) => FetchByteToRegister(.A);*/
 
+
+		instructions[INS_LDA_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => m); };
+		instructions[INS_LDA_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => m); };
+		instructions[INS_LDA_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => m); };
+		instructions[INS_LDA_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => m); };
+		instructions[INS_LDA_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => m); };
+		instructions[INS_LDA_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => m); };
+		instructions[INS_LDA_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => m); };
+		instructions[INS_LDA_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => m); };
+
+		instructions[INS_LDX_IM] = (c) => { return c.FetchByteToRegister(.X, .Immediate, (a, m) => m); };
+		instructions[INS_LDX_ZP] = (c) => { return c.FetchByteToRegister(.X, .ZeroPage(0), (a, m) => m); };
+		instructions[INS_LDX_ZPY] = (c) => { return c.FetchByteToRegister(.X, .ZeroPage(c.Y), (a, m) => m); };
+		instructions[INS_LDX_ABS] = (c) => { return c.FetchByteToRegister(.X, .Absolute(0), (a, m) => m); };
+		instructions[INS_LDX_ABSY] = (c) => { return c.FetchByteToRegister(.X, .Absolute(c.Y), (a, m) => m); };
+
+		instructions[INS_LDY_IM] = (c) => { return c.FetchByteToRegister(.Y, .Immediate, (a, m) => m); };
+		instructions[INS_LDY_ZP] = (c) => { return c.FetchByteToRegister(.Y, .ZeroPage(0), (a, m) => m); };
+		instructions[INS_LDY_ZPX] = (c) => { return c.FetchByteToRegister(.Y, .ZeroPage(c.X), (a, m) => m); };
+		instructions[INS_LDY_ABS] = (c) => { return c.FetchByteToRegister(.Y, .Absolute(0), (a, m) => m); };
+		instructions[INS_LDY_ABSX] = (c) => { return c.FetchByteToRegister(.Y, .Absolute(c.X), (a, m) => m); };
+
+		instructions[INS_STA_ZP] = (c) => { return c.StoreRegisterToMemory(.A, .ZeroPage(0)); };
+		instructions[INS_STA_ZPX] = (c) => { return c.StoreRegisterToMemory(.A, .ZeroPage(c.X)); };
+		instructions[INS_STA_ABS] = (c) => { return c.StoreRegisterToMemory(.A, .Absolute(0)); };
+		instructions[INS_STA_ABSX] = (c) => { return c.StoreRegisterToMemory(.A, .Absolute(c.X)); };
+		instructions[INS_STA_ABSY] = (c) => { return c.StoreRegisterToMemory(.A, .Absolute(c.Y)); };
+		instructions[INS_STA_INDX] = (c) => { return c.StoreRegisterToMemory(.A, .IndirectX); };
+		instructions[INS_STA_INDY] = (c) => { return c.StoreRegisterToMemory(.A, .IndirectY); };
+
+		instructions[INS_STX_ZP] = (c) => { return c.StoreRegisterToMemory(.X, .ZeroPage(0)); };
+		instructions[INS_STX_ZPY] = (c) => { return c.StoreRegisterToMemory(.X, .ZeroPage(c.Y)); };
+		instructions[INS_STX_ABS] = (c) => { return c.StoreRegisterToMemory(.X, .Absolute(0)); };
+
+		instructions[INS_STY_ZP] = (c) => { return c.StoreRegisterToMemory(.Y, .ZeroPage(0)); };
+		instructions[INS_STY_ZPX] = (c) => { return c.StoreRegisterToMemory(.Y, .ZeroPage(c.X)); };
+		instructions[INS_STY_ABS] = (c) => { return c.StoreRegisterToMemory(.Y, .Absolute(0)); };
+
+		instructions[INS_TAX] = (c) => { c.X = c.A; c.cycles--; return c.SetLoadFlags(.X); };
+		instructions[INS_TXA] = (c) => { c.A = c.X; c.cycles--; return c.SetLoadFlags(.A); };
+		instructions[INS_TAY] = (c) => { c.Y = c.A; c.cycles--; return c.SetLoadFlags(.Y); };
+		instructions[INS_TYA] = (c) => { c.A = c.Y; c.cycles--; return c.SetLoadFlags(.A); };
+		instructions[INS_TXS] = (c) => { c.SP = c.X; c.cycles--; return (void)0; };
+		instructions[INS_TSX] = (c) => { c.X = c.SP; c.cycles--; return c.SetLoadFlags(.X); };
 	}
 
 	public this(Memory* mem)
 	{
 		this.memory = mem;
+
 	}
 
 	public ~this()
 	{
-		delete this.functions;
+		delete this.instructions;
 	}
 
 	public void Reset()
@@ -256,11 +324,64 @@ class CPU
 		return this.ReadWord(addr);
 	}
 
-	public void FetchByteToRegister(Register R)
+	
+	public Byte ReadByte(Word addr, LoadAdressingMode L) // no cycle consumption, just for coding purposes
 	{
-		Byte val = this.FetchByte();
-		LoadValueToRegister(R, val);
+		switch(L)
+		{
+		case .Immediate: return (Byte)addr;
+		case .ZeroPage(let index): return (*this.memory)[(Byte)(addr + index)]; // adding might promote to Word too soon
+		case .Absolute(let index): return (*this.memory)[index + addr];
+		case .IndirectX: return (*this.memory)[ReadByte(addr, .ZeroPage(this.X))];
+		case .IndirectY: return (*this.memory)[ReadByte(addr, .ZeroPage(0)) + this.Y]; 
+		}
 
+	}
+
+	public void FetchByteToRegister(Register R, LoadAdressingMode L, function Byte(Byte a, Byte m) op)
+	{
+		Word addr;
+		Byte val;
+		switch(L)
+		{
+		case .Immediate: addr = FetchByte();
+		case .ZeroPage(let index):
+			addr = (Byte)(FetchByte() + index); if (index > 0) {this.cycles--;}
+		case .Absolute(let index):
+			Word temp = FetchWord();
+
+			addr = temp + index;
+			if (addr >> 8 != temp >> 8)
+				this.cycles--;
+			
+		case .IndirectX: addr = ReadWordFromZeroPage(FetchByte(), this.X);
+		case .IndirectY:
+			Word temp = ReadWordFromZeroPage(FetchByte());
+			addr = temp + this.Y;
+			if (addr >> 8 != temp >> 8)
+				this.cycles--;
+		}
+
+		if (L case .Immediate)
+			val = (Byte)addr;
+		else
+		{
+			val = (*this.memory)[addr];
+			cycles--;
+
+		}
+		this.LoadValueToRegister(R, op(this.A, val));
+	}
+
+	public void StoreRegisterToMemory(Register R, StoreAdressingMode S)
+	{
+		switch (S)
+		{
+		case .ZeroPage(let index): this.StoreRegisterToZeroPage(R, this.FetchByte(), index);
+		case .Absolute(let index): this.StoreRegisterToMemory(R, this.FetchWord(), index);
+		case .IndirectX: this.StoreRegisterToMemory(R, this.ReadWordFromZeroPage(this.FetchByte(), this.X)); cycles--; // yeah
+		case .IndirectY: this.StoreRegisterToMemory(R, this.ReadWordFromZeroPage(this.FetchByte()), this.Y);
+		}
 	}
 
 	// will check for page wrap
@@ -328,231 +449,8 @@ class CPU
 		while(this.cycles > 0)
 		{
 			Byte instruction = this.FetchByte();
+			this.instructions[instruction](this);
 
-			switch(instruction)
-			{
-
-			// ----- Load Accumulator ------
-			case INS_LDA_IM:
-			do {
-				FetchByteToRegister(.A);
-			}
-
-			case INS_LDA_ZP:
-			do{
-				this.LoadByteFromZeroPageToRegister(.A, this.FetchByte());
-			}
-
-			case INS_LDA_ZPX:
-			do {
-				this.LoadByteFromZeroPageToRegister(.A, this.FetchByte(), this.X);
-				//cycles--; // cause of previous addition + wrap around Zero Page
-			}
-
-			case INS_LDA_ABS:
-			do{
-				this.LoadByteFromAbsoluteMemoryToRegister(.A, FetchWord());
-			}
-
-			case INS_LDA_ABSX: // please use some functions later
-			do {
-				this.LoadByteFromAbsoluteMemoryToRegister(.A, FetchWord(), this.X);
-			}
-
-			case INS_LDA_ABSY:
-			do {
-				this.LoadByteFromAbsoluteMemoryToRegister(.A, FetchWord(), this.Y);
-			}
-
-			case INS_LDA_INDX:
-			do {
-				this.LoadByteFromAbsoluteMemoryToRegister(.A, this.ReadWordFromZeroPage(this.FetchByte(), this.X));
-			}
-
-			case INS_LDA_INDY:
-			do {
-				this.LoadByteFromAbsoluteMemoryToRegister(.A, this.ReadWordFromZeroPage(this.FetchByte()), this.Y);
-			}
-
-			// ------ Load X Register ------
-
-			case INS_LDX_IM:
-			do {
-				this.LoadValueToRegister(.X, this.FetchByte());
-			}
-
-			case INS_LDX_ZP:
-			do {
-				this.LoadByteFromZeroPageToRegister(.X, this.FetchByte());
-			}
-
-			case INS_LDX_ZPY:
-			do {
-				this.LoadByteFromZeroPageToRegister(.X, this.FetchByte(), this.Y);
-			}
-
-			case INS_LDX_ABS:
-			do{
-				this.LoadByteFromAbsoluteMemoryToRegister(.X, FetchWord());
-			}
-
-			case INS_LDX_ABSY:
-			do {
-				this.LoadByteFromAbsoluteMemoryToRegister(.X, FetchWord(), this.Y);
-			}
-
-			// ----- Load Y Register ------
-			
-			case INS_LDY_IM:
-			do {
-				this.FetchByteToRegister(.Y);
-			}
-
-			case INS_LDY_ZP:
-			do {
-				this.LoadByteFromZeroPageToRegister(.Y, this.FetchByte());
-			}
-
-			case INS_LDY_ZPX:
-			do {
-				this.LoadByteFromZeroPageToRegister(.Y, this.FetchByte(), this.X);
-			}
-
-			case INS_LDY_ABS:
-			do{
-				this.LoadByteFromAbsoluteMemoryToRegister(.Y, FetchWord());
-			}
-
-			case INS_LDY_ABSX:
-			do {
-				this.LoadByteFromAbsoluteMemoryToRegister(.Y, FetchWord(), this.X);
-			}
-
-			// ------ Store Accumulator ------
-
-			case INS_STA_ZP:
-			do {
-				this.StoreRegisterToZeroPage(.A, this.FetchByte());
-			}
-
-			case INS_STA_ZPX:
-			do {
-				this.StoreRegisterToZeroPage(.A, this.FetchByte(), this.X);
-			}
-
-			case INS_STA_ABS:
-			do {
-				this.StoreRegisterToMemory(.A, this.FetchWord());
-			}
-
-			case INS_STA_ABSX:
-			do {
-				this.StoreRegisterToMemory(.A, this.FetchWord(), this.X);
-			}
-
-			case INS_STA_ABSY:
-			do {
-				this.StoreRegisterToMemory(.A, this.FetchWord(), this.Y);
-			}
-
-			case INS_STA_INDX:
-			do {
-
-				this.StoreRegisterToMemory(.A, this.ReadWord(this.FetchByte(), this.X));
-			}
-
-			case INS_STA_INDY:
-			do {
-				this.StoreRegisterToMemory(.A, this.ReadWord(this.FetchByte()), this.Y);
-			}
-
-			// ------ Store X Register ----
-
-			case INS_STX_ZP:
-			do {
-				this.StoreRegisterToZeroPage(.X, this.FetchByte());
-			}
-
-			case INS_STX_ZPY:
-			do {
-				this.StoreRegisterToZeroPage(.X, this.FetchByte(), this.Y);
-			}
-
-			case INS_STX_ABS:
-			do {
-				this.StoreRegisterToMemory(.X, this.FetchWord());
-			}
-
-			// ------ Store Y Register ------
-
-			case INS_STY_ZP:
-			do {
-				this.StoreRegisterToZeroPage(.Y, this.FetchByte());
-			}
-
-			case INS_STY_ZPX:
-			do {
-				this.StoreRegisterToZeroPage(.Y, this.FetchByte(), this.X);
-			}
-
-			case INS_STY_ABS:
-			do {
-				this.StoreRegisterToMemory(.Y, this.FetchWord());
-			}
-
-			// ------ Register Transfers --------
-
-			case INS_TXA:
-			do {
-				this.LoadValueToRegister(.A, this.X);
-				this.cycles--;
-			}
-
-			case INS_TAX:
-			do {
-				this.LoadValueToRegister(.X, this.A);
-				this.cycles--;
-			}
-
-			case INS_TAY:
-			do {
-				this.LoadValueToRegister(.Y, this.A);
-				this.cycles--;
-			}
-
-			case INS_TYA:
-			do {
-				this.LoadValueToRegister(.A, this.Y);
-				this.cycles--;
-			}
-
-			case INS_TXS:
-			do {
-				this.SP = this.X;
-				this.cycles--;
-			}
-
-			case INS_TSX:
-			do {
-				this.LoadValueToRegister(.X, this.SP);
-				this.cycles--;
-			}
-
-
-			// ------ Other ------- xd
-			case INS_JSR:
-			do{ // absolute mode, so need 16 bits
-				Word jumpAddr = FetchWord();
-				this.memory.WriteWord(this.PC - 1, this.SP, ref this.cycles);
-				this.PC = jumpAddr;
-				this.SP += 2; // cause we wrote a word
-				this.cycles--;
-			}
-
-			default:
-				Console.WriteLine($"Unknown Instruction: {instruction}");
-				return .Err($"Unknown Instruction");
-			}
 
 		}
 		return startCycles - this.cycles;

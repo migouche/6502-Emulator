@@ -6,8 +6,9 @@ class M6502TransfersTest
 {
 	public static void TestFlags(CPU cpu, bool z, bool n)
 	{
-		Test.Assert(cpu.Z == z);
-		Test.Assert(cpu.N == n);
+
+		Test.AssertEq(cpu.Z, z);
+		Test.AssertEq(cpu.N, n);
 		// all other should be zero
 		Test.Assert(!(cpu.C || cpu.I || cpu.D || cpu.B || cpu.V));
 
@@ -26,8 +27,8 @@ class M6502TransfersTest
 		int cyclesNeeded = 2;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.X == cpu.A);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.X, cpu.A);
+		Test.AssertEq(c, cyclesNeeded);
 		TestFlags(cpu, false, true);
 	}
 
@@ -44,8 +45,8 @@ class M6502TransfersTest
 		int cyclesNeeded = 2;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.X == cpu.A);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.X, cpu.A);
+		Test.AssertEq(c, cyclesNeeded);
 		TestFlags(cpu, false, true);
 	}
 
@@ -62,8 +63,8 @@ class M6502TransfersTest
 		int cyclesNeeded = 2;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == cpu.A);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, cpu.A);
+		Test.AssertEq(c, cyclesNeeded);
 		TestFlags(cpu, false, true);
 	}
 
@@ -80,8 +81,8 @@ class M6502TransfersTest
 		int cyclesNeeded = 2;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.Y == cpu.A);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.Y, cpu.A);
+		Test.AssertEq(c, cyclesNeeded);
 		TestFlags(cpu, false, true);
 	}
 
@@ -98,8 +99,8 @@ class M6502TransfersTest
 		int cyclesNeeded = 2;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.X == cpu.SP);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.X, cpu.SP);
+		Test.AssertEq(c, cyclesNeeded);
 	}
 
 	
@@ -116,8 +117,8 @@ class M6502TransfersTest
 		int cyclesNeeded = 2;
 		int c = cpu.Execute(cyclesNeeded);
 
-		Test.Assert(cpu.X == cpu.SP);
-		Test.Assert(c == cyclesNeeded);
+		Test.AssertEq(cpu.X, cpu.SP);
+		Test.AssertEq(c, cyclesNeeded);
 		TestFlags(cpu, false, false);
 	}
 }
