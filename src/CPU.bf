@@ -222,6 +222,15 @@ class CPU
 		instructions[INS_TYA] = (c) => { c.A = c.Y; c.cycles--; return c.SetLoadFlags(.A); };
 		instructions[INS_TXS] = (c) => { c.SP = c.X; c.cycles--; return (void)0; };
 		instructions[INS_TSX] = (c) => { c.X = c.SP; c.cycles--; return c.SetLoadFlags(.X); };
+
+		instructions[INS_AND_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => a & m); };
+		instructions[INS_AND_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a & m); };
+		instructions[INS_AND_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a & m); };
+		instructions[INS_AND_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a & m); };
+		instructions[INS_AND_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a & m); };
+		instructions[INS_AND_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a & m); };
+		instructions[INS_AND_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => 4); };
+		instructions[INS_AND_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => a & m); };
 	}
 
 	public this(Memory* mem)
@@ -340,27 +349,32 @@ class CPU
 
 	public void FetchByteToRegister(Register R, LoadAdressingMode L, function Byte(Byte a, Byte m) op)
 	{
+		Console.WriteLine("hey");
 		Word addr;
 		Byte val;
 		switch(L)
 		{
-		case .Immediate: addr = FetchByte();
+		case .Immediate: addr = FetchByte(); Console.WriteLine("imm");
 		case .ZeroPage(let index):
-			addr = (Byte)(FetchByte() + index); if (index > 0) {this.cycles--;}
+			addr = (Byte)(FetchByte() + index); if (index > 0) {this.cycles--;} Console.WriteLine("zp");
 		case .Absolute(let index):
 			Word temp = FetchWord();
-
+			Console.WriteLine("abs");
 			addr = temp + index;
 			if (addr >> 8 != temp >> 8)
 				this.cycles--;
 			
-		case .IndirectX: addr = ReadWordFromZeroPage(FetchByte(), this.X);
+		case .IndirectX:
+			addr = ReadWordFromZeroPage(FetchByte(), this.X);
+			Console.WriteLine("indx");
 		case .IndirectY:
 			Word temp = ReadWordFromZeroPage(FetchByte());
 			addr = temp + this.Y;
 			if (addr >> 8 != temp >> 8)
 				this.cycles--;
+			Console.WriteLine("indy");
 		}
+		Console.WriteLine("end");
 
 		if (L case .Immediate)
 			val = (Byte)addr;

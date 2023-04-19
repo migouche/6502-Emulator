@@ -9,22 +9,25 @@ class Program
 	{
 		Memory mem = .();
 		CPU cpu = scope CPU(&mem);
+		cpu.A = 0xD7;
+		cpu.X = 0x04;
 
-		cpu.Reset();
+		mem[0xFFFC] = CPU.INS_AND_ABS;
+		mem[0xFFFD] = 0x02;
+
+		mem[0x0006] = 0x00; //0x2 + 0x4
+		mem[0x0007] = 0x80; //8000
+
+		mem[0x8000] = 0x37;
 
 
-		// hard-coding a program
-		mem[0xFFFC] = CPU.INS_JSR;
-		/*mem[0xFFFD] = 0x42;
-		mem[0xFFFE] = 0x42;*/
-		mem.WriteWord(0x4242, 0xFFFD);
-		mem[0x4242] = CPU.INS_LDA_IM;
-		mem[0x4243] = 0x84;
-		Console.WriteLine(cpu.A);
+		int cyclesNeeded = 5;
 
-		cpu.Execute(8);
+		Console.WriteLine($"memory: {mem[0x8000]}, a: {cpu.A}, op: {mem[0x8000] & cpu.A}");
 
-		Console.WriteLine(cpu.A);
+		cpu.Execute(cyclesNeeded);
+
+		Console.WriteLine($"memory: {mem[0x8000]}, a: {cpu.A}");
 
 	}
 }
