@@ -159,8 +159,26 @@ class CPU
 		INS_AND_ABSX = 0x3D, /// Logical AND Absolute X
 		INS_AND_ABSY = 0x39, /// Logical AND Absolute Y
 		INS_AND_INDX = 0x21, /// Logical AND Indirect X
-		INS_AND_INDY = 0x21, /// Logical AND Indirect Y
+		INS_AND_INDY = 0x31, /// Logical AND Indirect Y
 
+		INS_EOR_IM = 0x49,   /// Logical XOR Immediate
+		INS_EOR_ZP = 0x45,   /// Logical XOR Zero Page
+		INS_EOR_ZPX = 0x55,  /// Logical XOR Zero Page X
+		INS_EOR_ABS = 0x4D,  /// Logical XOR Absolute
+		INS_EOR_ABSX = 0x5D, /// Logical XOR Absolute X
+		INS_EOR_ABSY = 0x59, /// Logical XOR Absolute Y
+		INS_EOR_INDX = 0x41, /// Logical XOR Indirect X
+		INS_EOR_INDY = 0x51, /// Logical XOR Indirect Y
+	
+		INS_ORA_IM = 0x09,   /// Logical OR Immediate
+		INS_ORA_ZP = 0x05,   /// Logical OR Zero Page
+		INS_ORA_ZPX = 0x15,  /// Logical OR Zero Page X
+		INS_ORA_ABS = 0x0D,  /// Logical OR Absolute
+		INS_ORA_ABSX = 0x1D, /// Logical OR Absolute X
+		INS_ORA_ABSY = 0x19, /// Logical OR Absolute Y
+		INS_ORA_INDX = 0x01, /// Logical OR Indirect X
+		INS_ORA_INDY = 0x11, /// Logical OR Indirect Y	
+	
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
 	public function Result<void, String>(CPU)[] instructions = new function Result<void, String>(CPU)[0xFF];
@@ -229,8 +247,27 @@ class CPU
 		instructions[INS_AND_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a & m); };
 		instructions[INS_AND_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a & m); };
 		instructions[INS_AND_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a & m); };
-		instructions[INS_AND_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => 4); };
+		instructions[INS_AND_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => a & m); };
 		instructions[INS_AND_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => a & m); };
+
+		instructions[INS_EOR_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => a ^ m); };
+		instructions[INS_EOR_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a ^ m); };
+		instructions[INS_EOR_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a ^ m); };
+		instructions[INS_EOR_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a ^ m); };
+		instructions[INS_EOR_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a ^ m); };
+		instructions[INS_EOR_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a ^ m); };
+		instructions[INS_EOR_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => a ^ m); };
+		instructions[INS_EOR_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => a ^ m); };
+
+		instructions[INS_ORA_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => a | m); };
+		instructions[INS_ORA_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a | m); };
+		instructions[INS_ORA_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a | m); };
+		instructions[INS_ORA_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a | m); };
+		instructions[INS_ORA_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a | m); };
+		instructions[INS_ORA_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a | m); };
+		instructions[INS_ORA_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => a | m); };
+		instructions[INS_ORA_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => a | m); };
+
 	}
 
 	public this(Memory* mem)
@@ -349,32 +386,30 @@ class CPU
 
 	public void FetchByteToRegister(Register R, LoadAdressingMode L, function Byte(Byte a, Byte m) op)
 	{
-		Console.WriteLine("hey");
 		Word addr;
 		Byte val;
 		switch(L)
 		{
-		case .Immediate: addr = FetchByte(); Console.WriteLine("imm");
+		case .Immediate: addr = FetchByte();
 		case .ZeroPage(let index):
-			addr = (Byte)(FetchByte() + index); if (index > 0) {this.cycles--;} Console.WriteLine("zp");
+			addr = (Byte)(FetchByte() + index); if (index > 0) {this.cycles--;}
 		case .Absolute(let index):
 			Word temp = FetchWord();
-			Console.WriteLine("abs");
 			addr = temp + index;
 			if (addr >> 8 != temp >> 8)
 				this.cycles--;
 			
 		case .IndirectX:
 			addr = ReadWordFromZeroPage(FetchByte(), this.X);
-			Console.WriteLine("indx");
+			
 		case .IndirectY:
 			Word temp = ReadWordFromZeroPage(FetchByte());
 			addr = temp + this.Y;
 			if (addr >> 8 != temp >> 8)
 				this.cycles--;
-			Console.WriteLine("indy");
+			
 		}
-		Console.WriteLine("end");
+
 
 		if (L case .Immediate)
 			val = (Byte)addr;
