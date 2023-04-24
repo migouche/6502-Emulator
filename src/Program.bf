@@ -28,6 +28,5 @@ class Program
 		cpu.Execute(cyclesNeeded);
 
 		Console.WriteLine($"memory: {mem[0x8000]}, a: {cpu.A}");
-
 	}
 }

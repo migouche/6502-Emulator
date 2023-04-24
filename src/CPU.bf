@@ -90,6 +90,10 @@ class CPU
 		case IndirectY;
 	 }
 
+	public enum OpAdressingMode {
+		case ZeroPage(Byte index);
+		case Absolute(Byte index);
+	}
 
 	public Word PC; // Program Counter
 	public Byte SP; // Stack Pointer // SHOULD BE BYTE
@@ -177,8 +181,15 @@ class CPU
 		INS_ORA_ABSX = 0x1D, /// Logical OR Absolute X
 		INS_ORA_ABSY = 0x19, /// Logical OR Absolute Y
 		INS_ORA_INDX = 0x01, /// Logical OR Indirect X
-		INS_ORA_INDY = 0x11, /// Logical OR Indirect Y	
-	
+		INS_ORA_INDY = 0x11, /// Logical OR Indirect Y
+
+		INS_DEC_ZP = 0xC6,   /// Decrement Memory Zero Page
+		INS_DEC_ZPX = 0xD6,	 /// Decrement Memory Zero Page X
+		INS_DEC_ABS = 0xCE,  /// Decrement Memory Absolute
+		INS_DEC_ABSX = 0xDE, /// Decrement Memory Absolute X
+		INS_DEX = 0xCA,      /// Decrement X Register
+		INS_DEY = 0x88,      /// Decrement Y Register
+
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
 	public function Result<void, String>(CPU)[] instructions = new function Result<void, String>(CPU)[0xFF];
@@ -197,42 +208,42 @@ class CPU
 
 
 
-		instructions[INS_LDA_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => m); };
-		instructions[INS_LDA_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => m); };
-		instructions[INS_LDA_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => m); };
-		instructions[INS_LDA_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => m); };
-		instructions[INS_LDA_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => m); };
-		instructions[INS_LDA_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => m); };
-		instructions[INS_LDA_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => m); };
-		instructions[INS_LDA_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => m); };
+		instructions[INS_LDA_IM] = (c) => c.FetchByteToRegister(.A, .Immediate, (a, m) => m);
+		instructions[INS_LDA_ZP] = (c) => c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => m);
+		instructions[INS_LDA_ZPX] = (c) =>c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => m);
+		instructions[INS_LDA_ABS] = (c) => c.FetchByteToRegister(.A, .Absolute(0), (a, m) => m);
+		instructions[INS_LDA_ABSX] = (c) => c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => m);
+		instructions[INS_LDA_ABSY] = (c) => c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => m);
+		instructions[INS_LDA_INDX] = (c) => c.FetchByteToRegister(.A, .IndirectX, (a, m) => m);
+		instructions[INS_LDA_INDY] = (c) => c.FetchByteToRegister(.A, .IndirectY, (a, m) => m);
 
-		instructions[INS_LDX_IM] = (c) => { return c.FetchByteToRegister(.X, .Immediate, (a, m) => m); };
-		instructions[INS_LDX_ZP] = (c) => { return c.FetchByteToRegister(.X, .ZeroPage(0), (a, m) => m); };
-		instructions[INS_LDX_ZPY] = (c) => { return c.FetchByteToRegister(.X, .ZeroPage(c.Y), (a, m) => m); };
-		instructions[INS_LDX_ABS] = (c) => { return c.FetchByteToRegister(.X, .Absolute(0), (a, m) => m); };
-		instructions[INS_LDX_ABSY] = (c) => { return c.FetchByteToRegister(.X, .Absolute(c.Y), (a, m) => m); };
+		instructions[INS_LDX_IM] = (c) => c.FetchByteToRegister(.X, .Immediate, (a, m) => m);
+		instructions[INS_LDX_ZP] = (c) => c.FetchByteToRegister(.X, .ZeroPage(0), (a, m) => m);
+		instructions[INS_LDX_ZPY] = (c) => c.FetchByteToRegister(.X, .ZeroPage(c.Y), (a, m) => m);
+		instructions[INS_LDX_ABS] = (c) => c.FetchByteToRegister(.X, .Absolute(0), (a, m) => m);
+		instructions[INS_LDX_ABSY] = (c) => c.FetchByteToRegister(.X, .Absolute(c.Y), (a, m) => m);
 
-		instructions[INS_LDY_IM] = (c) => { return c.FetchByteToRegister(.Y, .Immediate, (a, m) => m); };
-		instructions[INS_LDY_ZP] = (c) => { return c.FetchByteToRegister(.Y, .ZeroPage(0), (a, m) => m); };
-		instructions[INS_LDY_ZPX] = (c) => { return c.FetchByteToRegister(.Y, .ZeroPage(c.X), (a, m) => m); };
-		instructions[INS_LDY_ABS] = (c) => { return c.FetchByteToRegister(.Y, .Absolute(0), (a, m) => m); };
-		instructions[INS_LDY_ABSX] = (c) => { return c.FetchByteToRegister(.Y, .Absolute(c.X), (a, m) => m); };
+		instructions[INS_LDY_IM] = (c) => c.FetchByteToRegister(.Y, .Immediate, (a, m) => m);
+		instructions[INS_LDY_ZP] = (c) => c.FetchByteToRegister(.Y, .ZeroPage(0), (a, m) => m);
+		instructions[INS_LDY_ZPX] = (c) => c.FetchByteToRegister(.Y, .ZeroPage(c.X), (a, m) => m);
+		instructions[INS_LDY_ABS] = (c) => c.FetchByteToRegister(.Y, .Absolute(0), (a, m) => m);
+		instructions[INS_LDY_ABSX] = (c) => c.FetchByteToRegister(.Y, .Absolute(c.X), (a, m) => m);
 
-		instructions[INS_STA_ZP] = (c) => { return c.StoreRegisterToMemory(.A, .ZeroPage(0)); };
-		instructions[INS_STA_ZPX] = (c) => { return c.StoreRegisterToMemory(.A, .ZeroPage(c.X)); };
-		instructions[INS_STA_ABS] = (c) => { return c.StoreRegisterToMemory(.A, .Absolute(0)); };
-		instructions[INS_STA_ABSX] = (c) => { return c.StoreRegisterToMemory(.A, .Absolute(c.X)); };
-		instructions[INS_STA_ABSY] = (c) => { return c.StoreRegisterToMemory(.A, .Absolute(c.Y)); };
-		instructions[INS_STA_INDX] = (c) => { return c.StoreRegisterToMemory(.A, .IndirectX); };
-		instructions[INS_STA_INDY] = (c) => { return c.StoreRegisterToMemory(.A, .IndirectY); };
+		instructions[INS_STA_ZP] = (c) => c.StoreRegisterToMemory(.A, .ZeroPage(0));
+		instructions[INS_STA_ZPX] = (c) => c.StoreRegisterToMemory(.A, .ZeroPage(c.X));
+		instructions[INS_STA_ABS] = (c) => c.StoreRegisterToMemory(.A, .Absolute(0));
+		instructions[INS_STA_ABSX] = (c) => c.StoreRegisterToMemory(.A, .Absolute(c.X));
+		instructions[INS_STA_ABSY] = (c) => c.StoreRegisterToMemory(.A, .Absolute(c.Y));
+		instructions[INS_STA_INDX] = (c) => c.StoreRegisterToMemory(.A, .IndirectX);
+		instructions[INS_STA_INDY] = (c) => c.StoreRegisterToMemory(.A, .IndirectY);
 
-		instructions[INS_STX_ZP] = (c) => { return c.StoreRegisterToMemory(.X, .ZeroPage(0)); };
-		instructions[INS_STX_ZPY] = (c) => { return c.StoreRegisterToMemory(.X, .ZeroPage(c.Y)); };
-		instructions[INS_STX_ABS] = (c) => { return c.StoreRegisterToMemory(.X, .Absolute(0)); };
+		instructions[INS_STX_ZP] = (c) => c.StoreRegisterToMemory(.X, .ZeroPage(0));
+		instructions[INS_STX_ZPY] = (c) => c.StoreRegisterToMemory(.X, .ZeroPage(c.Y));
+		instructions[INS_STX_ABS] = (c) => c.StoreRegisterToMemory(.X, .Absolute(0));
 
-		instructions[INS_STY_ZP] = (c) => { return c.StoreRegisterToMemory(.Y, .ZeroPage(0)); };
-		instructions[INS_STY_ZPX] = (c) => { return c.StoreRegisterToMemory(.Y, .ZeroPage(c.X)); };
-		instructions[INS_STY_ABS] = (c) => { return c.StoreRegisterToMemory(.Y, .Absolute(0)); };
+		instructions[INS_STY_ZP] = (c) => c.StoreRegisterToMemory(.Y, .ZeroPage(0));
+		instructions[INS_STY_ZPX] = (c) => c.StoreRegisterToMemory(.Y, .ZeroPage(c.X));
+		instructions[INS_STY_ABS] = (c) => c.StoreRegisterToMemory(.Y, .Absolute(0));
 
 		instructions[INS_TAX] = (c) => { c.X = c.A; c.cycles--; return c.SetLoadFlags(.X); };
 		instructions[INS_TXA] = (c) => { c.A = c.X; c.cycles--; return c.SetLoadFlags(.A); };
@@ -241,32 +252,39 @@ class CPU
 		instructions[INS_TXS] = (c) => { c.SP = c.X; c.cycles--; return (void)0; };
 		instructions[INS_TSX] = (c) => { c.X = c.SP; c.cycles--; return c.SetLoadFlags(.X); };
 
-		instructions[INS_AND_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => a & m); };
-		instructions[INS_AND_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a & m); };
-		instructions[INS_AND_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a & m); };
-		instructions[INS_AND_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a & m); };
-		instructions[INS_AND_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a & m); };
-		instructions[INS_AND_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a & m); };
-		instructions[INS_AND_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => a & m); };
-		instructions[INS_AND_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => a & m); };
+		instructions[INS_AND_IM] = (c) => c.FetchByteToRegister(.A, .Immediate, (a, m) => a & m);
+		instructions[INS_AND_ZP] = (c) => c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a & m);
+		instructions[INS_AND_ZPX] = (c) => c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a & m);
+		instructions[INS_AND_ABS] = (c) => c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a & m);
+		instructions[INS_AND_ABSX] = (c) => c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a & m);
+		instructions[INS_AND_ABSY] = (c) => c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a & m);
+		instructions[INS_AND_INDX] = (c) => c.FetchByteToRegister(.A, .IndirectX, (a, m) => a & m);
+		instructions[INS_AND_INDY] = (c) => c.FetchByteToRegister(.A, .IndirectY, (a, m) => a & m);
 
-		instructions[INS_EOR_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => a ^ m); };
-		instructions[INS_EOR_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a ^ m); };
-		instructions[INS_EOR_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a ^ m); };
-		instructions[INS_EOR_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a ^ m); };
-		instructions[INS_EOR_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a ^ m); };
-		instructions[INS_EOR_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a ^ m); };
-		instructions[INS_EOR_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => a ^ m); };
-		instructions[INS_EOR_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => a ^ m); };
+		instructions[INS_EOR_IM] = (c) => c.FetchByteToRegister(.A, .Immediate, (a, m) => a ^ m);
+		instructions[INS_EOR_ZP] = (c) => c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a ^ m);
+		instructions[INS_EOR_ZPX] = (c) => c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a ^ m);
+		instructions[INS_EOR_ABS] = (c) => c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a ^ m);
+		instructions[INS_EOR_ABSX] = (c) => c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a ^ m);
+		instructions[INS_EOR_ABSY] = (c) => c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a ^ m);
+		instructions[INS_EOR_INDX] = (c) => c.FetchByteToRegister(.A, .IndirectX, (a, m) => a ^ m);
+		instructions[INS_EOR_INDY] = (c) => c.FetchByteToRegister(.A, .IndirectY, (a, m) => a ^ m);
 
-		instructions[INS_ORA_IM] = (c) => { return c.FetchByteToRegister(.A, .Immediate, (a, m) => a | m); };
-		instructions[INS_ORA_ZP] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a | m); };
-		instructions[INS_ORA_ZPX] = (c) => { return c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a | m); };
-		instructions[INS_ORA_ABS] = (c) => { return c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a | m); };
-		instructions[INS_ORA_ABSX] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a | m); };
-		instructions[INS_ORA_ABSY] = (c) => { return c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a | m); };
-		instructions[INS_ORA_INDX] = (c) => { return c.FetchByteToRegister(.A, .IndirectX, (a, m) => a | m); };
-		instructions[INS_ORA_INDY] = (c) => { return c.FetchByteToRegister(.A, .IndirectY, (a, m) => a | m); };
+		instructions[INS_ORA_IM] = (c) => c.FetchByteToRegister(.A, .Immediate, (a, m) => a | m);
+		instructions[INS_ORA_ZP] = (c) => c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a | m);
+		instructions[INS_ORA_ZPX] = (c) => c.FetchByteToRegister(.A, .ZeroPage(c.X), (a, m) => a | m);
+		instructions[INS_ORA_ABS] = (c) => c.FetchByteToRegister(.A, .Absolute(0), (a, m) => a | m);
+		instructions[INS_ORA_ABSX] = (c) => c.FetchByteToRegister(.A, .Absolute(c.X), (a, m) => a | m);
+		instructions[INS_ORA_ABSY] = (c) => c.FetchByteToRegister(.A, .Absolute(c.Y), (a, m) => a | m);
+		instructions[INS_ORA_INDX] = (c) => c.FetchByteToRegister(.A, .IndirectX, (a, m) => a | m);
+		instructions[INS_ORA_INDY] = (c) => c.FetchByteToRegister(.A, .IndirectY, (a, m) => a | m);
+
+		instructions[INS_DEX] = (c) => c.WriteVal(.X, (r) => r - 1);
+		instructions[INS_DEY] = (c) => c.WriteVal(.Y, (r) => r - 1);
+		instructions[INS_DEC_ZP] = (c) => c.WriteVal(.ZeroPage(0), (r) => r - 1);
+		instructions[INS_DEC_ZPX] = (c) => c.WriteVal(.ZeroPage(c.X), (r) => r - 1);
+		instructions[INS_DEC_ABS] = (c) => c.WriteVal(.Absolute(0), (r) => r - 1);
+		instructions[INS_DEC_ABSX] = (c) => c.WriteVal(.Absolute(c.X), (r) => r - 1);
 
 	}
 
@@ -347,6 +365,12 @@ class CPU
 		this.N = val & 0b10000000;
 	}
 
+	public void SetLoadFlags(Byte val)
+	{
+		this.Z = val == 0;
+		this.N = val & 0b10000000;
+	}
+
 
 
 	public void LoadValueToRegister(Register R, Byte val) // should not take cycles
@@ -381,7 +405,35 @@ class CPU
 		case .IndirectX: return (*this.memory)[ReadByte(addr, .ZeroPage(this.X))];
 		case .IndirectY: return (*this.memory)[ReadByte(addr, .ZeroPage(0)) + this.Y]; 
 		}
+	}
 
+	public void WriteVal(Register R, function Byte(Byte r) op)
+	{
+		Byte val;
+
+		switch (R)
+		{
+		case .A: val = this.A;
+		case .X: val = this.X;
+		case .Y: val = this.Y;
+		}
+		cycles--;
+
+		LoadValueToRegister(R, op(val));
+	}
+
+	public void WriteVal(OpAdressingMode O, function Byte(Byte r) op)
+ 	{
+		Word addr;
+		switch(O)
+		{
+		case .ZeroPage(let index): addr = (Byte)(this.FetchByte() + index); if (index > 0) cycles--;
+		case .Absolute(let index): addr = this.FetchWord() + index; if (index > 0) cycles--;
+		}
+		 Byte val = this.ReadByte(addr, .Absolute(0));
+		 (*this.memory)[addr] = op(val);
+		 SetLoadFlags(val);
+		 cycles-=3;
 	}
 
 	public void FetchByteToRegister(Register R, LoadAdressingMode L, function Byte(Byte a, Byte m) op)

@@ -4,6 +4,7 @@ namespace System
 	{
 		public static void AssertEq<T>(T value, T expected, String error = Compiler.CallerExpression[0], String filePath = Compiler.CallerFilePath, int line = Compiler.CallerLineNum) where bool: operator T == T
 		{
+			
 			if(expected != value)
 			{
 				if (Runtime.CheckErrorHandlers(scope Runtime.AssertError(.Test, error, filePath, line)) == .Ignore)

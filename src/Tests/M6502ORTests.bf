@@ -30,7 +30,7 @@ class M5302ORTests
 		int cycles = cpu.Execute(cyclesNeeded);
 
 		Test.AssertEq(cpu.A, 0x84 | 0xD7);
-		AssertFlags(cpu, false, false);
+		AssertFlags(cpu, false, true);
 		Test.AssertEq(cyclesNeeded, cycles);
 
 		cpu.A = 0;
