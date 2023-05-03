@@ -3,7 +3,7 @@ using System;
 namespace CPU_6502.Tests;
 
 
-class M5302ORTests
+static class M5302ORTests
 {
 
 	public static void AssertFlags (CPU cpu, bool Z, bool N)

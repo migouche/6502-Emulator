@@ -1,6 +1,6 @@
 using System;
 
-namespace CPU_6502;
+namespace CPU_6502;	
 
 class Program
 {
@@ -28,5 +28,10 @@ class Program
 		cpu.Execute(cyclesNeeded);
 
 		Console.WriteLine($"memory: {mem[0x8000]}, a: {cpu.A}");
+		Console.WriteLine("hey");
+
+		/*Byte b = 54;
+		Byte r = b - 55;
+		Console.WriteLine($"resul is: {r}");*/ // overflow works correctly
 	}
 }

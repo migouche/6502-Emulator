@@ -26,6 +26,8 @@ struct Bit: IFormattable
 
 	public static operator bool(Bit b) => b.bit;
 
+	public static operator Byte(Bit b) => b.bit ? 1: 0;
+
 	public void ToString(String outString, String format, IFormatProvider formatProvider)
 	{
 		uint8 v = bit ? 1: 0;
@@ -93,6 +95,13 @@ class CPU
 	public enum OpAdressingMode {
 		case ZeroPage(Byte index);
 		case Absolute(Byte index);
+	}
+
+	public enum CompareValue {
+		case A;
+		case X;
+		case Y;
+		case M(Word addr, LoadAdressingMode l);
 	}
 
 	public Word PC; // Program Counter
@@ -190,10 +199,46 @@ class CPU
 		INS_DEX = 0xCA,      /// Decrement X Register
 		INS_DEY = 0x88,      /// Decrement Y Register
 
+		INS_CMP_IM = 0xC9,   /// Compare Accumulator Immediate
+		INS_CMP_ZP = 0xC5,   /// Compare Accumulator Zero Page
+		INS_CMP_ZPX = 0xD5,  /// Compare Accumulator Zero Page X
+		INS_CMP_ABS = 0xCD,  /// Compare Accumulator Absolute
+		INS_CMP_ABSX = 0xDD, /// Compare Accumulator Absolute X
+		INS_CMP_ABSY = 0xD9, /// Compare Accumulator Absolute Y
+		INS_CMP_INDX = 0xC1, /// Compare Accumulator Indirect X
+		INS_CMP_INDY = 0xD1, /// Compare Accumulator Indirect Y
+
+		INS_CPX_IM = 0xE0,   /// Compare X Register Immediate
+		INS_CPX_ZP = 0xE4,   /// Compare X Register ZeroPage
+		INS_CPX_ABS = 0xEC,  /// Compare X Register Absolute
+		INS_CPY_IM = 0xC0,   /// Compare Y Register Immediate
+		INS_CPY_ZP = 0xC4,   /// Compare Y Register ZeroPge
+		INS_CPY_ABS = 0xCC,  /// Compare Y Register Absolute
+
+		INS_CLC = 0x18,      /// Clear Carry Flag
+		INS_CLD = 0xD8,      /// Clear Decimal Flag
+		INS_CLI = 0x58,      /// Clear Interrupt Disable Flag
+		INS_CLV = 0xB8,      /// Clear Overflow Flag
+		INS_SEC = 0x38,      /// Set Carry Flag
+		INS_SED = 0xF8,      /// Set Decimal Flag
+		INS_SEI = 0x78,      /// Set Interrupt Disable Flag
+
+		INS_ADC_IM = 0x69,   /// Add with Carry Immediate
+		INS_ADC_ZP = 0x65,   /// Add with Carry Zero Page
+		INS_ADC_ZPX = 0x75,  /// Add with Carry Zero Page X
+		INS_ADC_ABS = 0x6D,  /// Add with Carry Absolute
+		INS_ADC_ABSX = 0x7D, /// Add with Carry Absolute X
+		INS_ADC_ABSY = 0x79, /// Add with Carry Absolute Y
+		INS_ADC_INDX = 0x61, /// Add with Carry Indirect X
+		INS_ADC_INDY = 0x71, /// Add with Carry Indirect Y
+
+		INS_BIT_ZP = 0x24,   /// Bit Test Zero Page
+		INS_BIT_ABS = 0x2C,  /// Bit Test Zero Page
+
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
 	public function Result<void, String>(CPU)[] instructions = new function Result<void, String>(CPU)[0xFF];
-
+	
 
 
 	public this
@@ -286,7 +331,52 @@ class CPU
 		instructions[INS_DEC_ABS] = (c) => c.WriteVal(.Absolute(0), (r) => r - 1);
 		instructions[INS_DEC_ABSX] = (c) => c.WriteVal(.Absolute(c.X), (r) => r - 1);
 
+		instructions[INS_BIT_ZP] = (c) =>
+			{
+				Byte val = c.ReadByte(c.FetchByte());
+				c.Z = c.A & val == 0;
+				c.N = val & 0b10000000;
+				c.V = val & 0b1000000;
+				return .Ok;
+			};
+
+		instructions[INS_BIT_ABS] = (c) =>
+			{
+
+				Byte val = c.ReadByte(c.FetchWord());
+				c.Z = c.A & val == 0;
+				c.N = val & 0b10000000;
+				c.V = val & 0b1000000;
+				return .Ok;
+			};
+
+		instructions[INS_CMP_IM] = (c) => c.CompareVals(.A, .M(c.FetchByte(), .Immediate));
+		instructions[INS_CMP_ZP] = (c) => c.CompareVals(.A, .M(c.FetchByte(), .ZeroPage(0)));
+		instructions[INS_CMP_ZPX] = (c) => c.CompareVals(.A, .M(c.FetchByte(), .ZeroPage(c.X)));
+		instructions[INS_CMP_ABS] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .Absolute(0)));
+		instructions[INS_CMP_ABSX] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .Absolute(c.X)));
+		instructions[INS_CMP_ABSY] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .Absolute(c.Y)));
+		instructions[INS_CMP_INDX] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .IndirectX));
+		instructions[INS_CMP_INDY] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .IndirectY));
+
+		instructions[INS_CPX_IM] = (c) => c.CompareVals(.X, .M(c.FetchByte(), .Immediate));
+		instructions[INS_CPX_ZP] = (c) => c.CompareVals(.X, .M(c.FetchByte(), .ZeroPage(0)));
+		instructions[INS_CPX_ABS] = (c) => c.CompareVals(.X, .M(c.FetchWord(), .Absolute(0)));
+		instructions[INS_CPY_IM] = (c) => c.CompareVals(.Y, .M(c.FetchByte(), .Immediate));
+		instructions[INS_CPY_ZP] = (c) => c.CompareVals(.Y, .M(c.FetchByte(), .ZeroPage(0)));
+		instructions[INS_CPY_ABS] = (c) => c.CompareVals(.Y, .M(c.FetchWord(), .Absolute(0)));
+
+		instructions[INS_CLC] = (c) => c.SetFlag(ref c.C, 0);
+		instructions[INS_SEC] = (c) => c.SetFlag(ref c.C, 1);
+		instructions[INS_CLD] = (c) => c.SetFlag(ref c.D, 0);
+		instructions[INS_SED] = (c) => c.SetFlag(ref c.D, 1);
+		instructions[INS_CLI] = (c) => c.SetFlag(ref c.I, 0);
+		instructions[INS_SEI] = (c) => c.SetFlag(ref c.I, 1);
+		instructions[INS_CLV] = (c) => c.SetFlag(ref c.V, 0);
+
+		instructions[INS_ADC_IM] = (c) => c.AddToAccumulator(.Immediate, c.FetchByte());
 	}
+
 
 	public this(Memory* mem)
 	{
@@ -307,6 +397,12 @@ class CPU
 		A = X = Y = 0;
 	}
 
+	public void SetFlag(ref Bit flag, Bit newVal)
+	{
+		flag = newVal;
+		this.cycles--;
+	}
+
 	public Byte ReadByte(Word address)
 	{
 		Byte data = (*this.memory)[address]; 
@@ -314,7 +410,23 @@ class CPU
 		return data;
 	}
 
-	public Byte FetchByte() // will rework to work with ReadByte
+	public void AddToAccumulator(LoadAdressingMode R, Byte addr)
+	{
+		AddToAccumulator(ReadByte(addr, R, true));
+	}
+
+	/// this will add A to the val, and store it to A, will set all flags accordingly
+	public void AddToAccumulator(Byte val)
+	{
+		int sum = (int)this.A + (int)val + (Byte)this.C;
+		bool possibleOverflow = val >> 7 == this.A >> 7;
+		this.A = (Byte)sum;
+		this.SetLoadFlags(.A); // Z and N set
+		this.C = sum != this.A;
+		this.V = possibleOverflow && val >> 7 !=  this.A >> 7;
+	}
+
+	public Byte FetchByte() // will rework to work with ReadByte (or not xd)
 	{
 		Byte data = (*this.memory)[this.PC]; 
 		this.PC++;
@@ -335,7 +447,7 @@ class CPU
 
 	public Word FetchWord()
 	{
-		// 6502 is little endian
+		// 6502 is little-endian
 		Word data = (*this.memory)[this.PC]; // Low byte
 		this.PC++;
 		cycles--;
@@ -348,6 +460,7 @@ class CPU
 
 		return data;
 	}
+
 
 	void SetLoadFlags(Register R)
 	{
@@ -371,7 +484,30 @@ class CPU
 		this.N = val & 0b10000000;
 	}
 
+	public void CompareVals(CompareValue a, CompareValue b)
+	{
+		Byte val1;
+		switch(a)
+		{
+		case .X: val1 = this.X;
+		case .Y: val1 = this.Y;
+		case .A: val1 = this.A;
+		case .M(let addr, let l): val1 = this.ReadByte(addr, l, true);
+		}
 
+		Byte val2;
+		switch(b)
+		{
+		case .X: val2 = this.X;
+		case .Y: val2 = this.Y;
+		case .A: val2 = this.A;
+		case .M(let addr, let l): val2 = this.ReadByte(addr, l, true);
+		}
+
+		this.C = val1 >= val2;
+		this.Z = val1 == val2;
+		this.N = (val1 - val2) & 0b10000000;
+	}
 
 	public void LoadValueToRegister(Register R, Byte val) // should not take cycles
 	{
@@ -395,15 +531,41 @@ class CPU
 	}
 
 	
-	public Byte ReadByte(Word addr, LoadAdressingMode L) // no cycle consumption, just for coding purposes
+	public Byte ReadByte(Word addr, LoadAdressingMode L, bool consume = false) // no cycle consumption, just for coding purposes
 	{
+		
 		switch(L)
 		{
-		case .Immediate: return (Byte)addr;
-		case .ZeroPage(let index): return (*this.memory)[(Byte)(addr + index)]; // adding might promote to Word too soon
-		case .Absolute(let index): return (*this.memory)[index + addr];
-		case .IndirectX: return (*this.memory)[ReadByte(addr, .ZeroPage(this.X))];
-		case .IndirectY: return (*this.memory)[ReadByte(addr, .ZeroPage(0)) + this.Y]; 
+		case .Immediate:
+			return (Byte)addr;
+		case .ZeroPage(let index):
+			if(consume) {
+				cycles--;
+				if (index > 0)
+					cycles--;
+			}
+			return (*this.memory)[(Byte)(addr + index)]; // adding might promote to Word too soon
+		case .Absolute(let index):
+			Word f = addr + index;
+			if(consume)
+			{
+				cycles--;
+				if (f >> 8 != addr >> 8)
+					cycles--;
+				
+			}
+			return (*this.memory)[f];
+		case .IndirectX:
+			Word fAddress = this.ReadByte(addr + this.X, .ZeroPage(0), consume);
+			fAddress |= (Word)this.ReadByte(addr + this.X + 1, .ZeroPage(0), consume) << 8; 
+			//if(consume) cycles-=5; gotta take 3
+			return this.ReadByte(fAddress, .Absolute(0), consume);
+		case .IndirectY:
+			Word fAddres = this.ReadByte(addr, .ZeroPage(0), consume);
+			fAddres |= (Word)this.ReadByte(addr + 1, .ZeroPage(0), consume) << 8;
+			this.cycles++; // to fix a double sum (this originates from fixing zp with pre sum)
+			return this.ReadByte(fAddres, .Absolute(this.Y), consume);
+
 		}
 	}
 
