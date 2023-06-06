@@ -1,37 +1,27 @@
 using System;
-
-namespace CPU_6502;	
+using System.Collections;
+namespace CPU_6502;
+using CPU_6502.Assembler;	
 
 class Program
 {
 
 	static void Main()
 	{
+		AST.Start();
+		//Parser.ReadLines("test.asm");
+
+		Assembly a = scope .("test.asm");
+
+
 		Memory mem = .();
+		mem.HardLoadProgram(a.Export());
 		CPU cpu = scope CPU(&mem);
-		cpu.A = 0xD7;
-		cpu.X = 0x04;
+		cpu.Run(a.startAddress);
 
-		mem[0xFFFC] = CPU.INS_AND_INDY;
-		mem[0xFFFD] = 0x02;
+		Console.WriteLine($"A: {cpu.A}");
+		Console.WriteLine($"$0200: {mem[0x0200]}, $0201: {mem[0x0201]}, $0202: {mem[0x0202]}");
+		AST.Stop();
 
-		mem[0x0006] = 0x00; //0x2 + 0x4
-		mem[0x0007] = 0x80; //8000
-
-		mem[0x8000] = 0x37;
-
-
-		int cyclesNeeded = 5;
-
-		Console.WriteLine($"memory: {mem[0x8000]}, a: {cpu.A}, op: {mem[0x8000] & cpu.A}");
-
-		cpu.Execute(cyclesNeeded);
-
-		Console.WriteLine($"memory: {mem[0x8000]}, a: {cpu.A}");
-		Console.WriteLine("hey");
-
-		/*Byte b = 54;
-		Byte r = b - 55;
-		Console.WriteLine($"resul is: {r}");*/ // overflow works correctly
 	}
 }

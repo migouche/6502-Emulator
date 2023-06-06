@@ -1,5 +1,6 @@
 using System;
 
+
 namespace CPU_6502;
 
 typealias Byte = uint8;
@@ -65,6 +66,11 @@ struct Memory
 		this[addr] = (Byte)val;
 		this[addr + 1] = (Byte)(val >> 8);
 	}
+
+	public void HardLoadProgram(Byte[MAX_MEM] m) mut
+	{
+		this.data = m;
+	}
 }
 
 
@@ -105,7 +111,7 @@ class CPU
 	}
 
 	public Word PC; // Program Counter
-	public Byte SP; // Stack Pointer // SHOULD BE BYTE
+	public Byte SP; // Stack Pointer // SHOULD BE BYTE // Starts at 0xFF and goes down when branching
 
 	public Byte A, X, Y; // Registers
 
@@ -717,5 +723,30 @@ class CPU
 
 		}
 		return startCycles - this.cycles;
+	}
+
+	public void Run(Word start)
+	{
+		this.PC = start;
+		while((*this.memory)[this.PC] != 0) // be better than that and add break
+		{
+			this.Tick();
+		}
+	}
+
+	public void RunNextInstruction()
+	{
+		Byte instruction = this.FetchByte();
+		//Console.WriteLine($"Running instructioin {}")
+		this.instructions[instruction](this);
+	}
+
+
+
+	public void Tick()
+	{
+		this.cycles++;
+		if (this.cycles >= 0)
+			this.RunNextInstruction();
 	}
 }
