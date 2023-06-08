@@ -47,20 +47,26 @@ struct Memory
 			this.data[i] = 0;
 	}
 
-	public Byte this[uint32 i]
+	public Byte Get(Word i)
+	{
+		return this.data[i];
+	}
+
+
+	public Byte this[Word i]
 	{
 		get => data[i];
 		set mut => data[i] = value;
 	}
 
-	public void WriteWord(Word val, uint32 addr, ref int cycles) mut
+	public void WriteWord(Word val, Word addr, ref int cycles) mut
 	{
 		//Console.WriteLine($"Writing word {val} at address {addr}...");
 		this.WriteWord(val, addr);
 		cycles -= 2;
 	}
 
-	public void WriteWord(Word val, uint32 addr) mut // Should not be used
+	public void WriteWord(Word val, Word addr) mut // Should not be used
 	{
 		//Console.WriteLine($"Writing word {val} at address {addr}...");
 		this[addr] = (Byte)val;
@@ -121,6 +127,8 @@ class CPU
 
 	public Memory* memory;
 	public int cycles;
+
+	public const Word resetVector = 0xFFFC;
 
 
 	// opcodes
@@ -244,14 +252,10 @@ class CPU
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
 	public function Result<void, String>(CPU)[] instructions = new function Result<void, String>(CPU)[0xFF];
-	
 
 
 	public this
 	{
-		this.Reset();
-
-
 		for (int i < 0xFF)
 		{
 			instructions[i] =  (_) => .Err("Unknown Instruction");
@@ -387,7 +391,8 @@ class CPU
 	public this(Memory* mem)
 	{
 		this.memory = mem;
-
+		//this.memory.Initialize();
+		this.Reset();
 	}
 
 	public ~this()
@@ -395,12 +400,21 @@ class CPU
 		delete this.instructions;
 	}
 
-	public void Reset()
+
+
+	public void Reset() // should take 7 bytes
 	{ // should code this but we emulate for now
-		PC = 0xFFFC; // reset vector
-		SP = (Byte)0x0100; // 0x100 = 0x0 in 8-bit right?? gotta check this
+		Console.WriteLine("before pc");
+		Console.WriteLine(memory.Get(resetVector));
+		this.PC = memory.Get(resetVector);
+		Console.WriteLine(this.PC);
+		//PC = memory.Get(0xfffc);
+		Console.WriteLine("after pc");
+		SP = (Byte)0x00; // I'm supposing for now that SP = 0x01SP
 		C = Z = I = D = B = V = N = 0;
 		A = X = Y = 0;
+
+		cycles -= 5; // do better that this :)
 	}
 
 	public void SetFlag(ref Bit flag, Bit newVal)
@@ -725,9 +739,10 @@ class CPU
 		return startCycles - this.cycles;
 	}
 
-	public void Run(Word start)
+	public void Run()
 	{
-		this.PC = start;
+		Console.WriteLine($"PC: {this.PC}");
+		//this.PC = resetVector; // may wanna call reset or something
 		while((*this.memory)[this.PC] != 0) // be better than that and add break
 		{
 			this.Tick();
@@ -737,7 +752,7 @@ class CPU
 	public void RunNextInstruction()
 	{
 		Byte instruction = this.FetchByte();
-		//Console.WriteLine($"Running instructioin {}")
+		Console.WriteLine($"Running instruction {instruction}");
 		this.instructions[instruction](this);
 	}
 

@@ -8,12 +8,12 @@ namespace CPU_6502.Assembler;
 
 public static class Parser
 {
-	public static Result<List<ASTNode>, String> ReadLines(String path, bool verbose = false)
+	public static Result<(List<ASTNode>, Word), String> ReadLines(String path, bool verbose = false)
 	{
 		String text = scope .();
 		List<ASTNode> l = new .();
 		var r = File.ReadAllText(path, text);
-		int startAdd = 0x0200;
+		Word startAdd = 0x0200;
 		switch(r)
 		{
 		case .Err(let err):
@@ -26,6 +26,7 @@ public static class Parser
 			{
 				if(i++ == 0 && (val.Contains(".org") || val.Contains(".ORG")))
 				{
+					Console.WriteLine(".org");
 					int j = 0;
 					for (let split in val.Split(' '))
 						if(j++ == 1)
@@ -34,7 +35,10 @@ public static class Parser
 							s.Remove(0);
 							var o = Int32.Parse(s, System.Globalization.NumberStyles.HexNumber);
 							if(o case .Ok(let st))
-								startAdd = st;
+							{
+								Console.WriteLine($"st: {st}");
+								startAdd = (Word)st;
+							}
 						}
 					if(verbose)
 						Console.WriteLine($"{i}: .org {startAdd}");
@@ -59,9 +63,7 @@ public static class Parser
 					l.Add(ins);
 				}
 			}
-
-			return .Ok(l);
-
+			return .Ok((l, startAdd));
 		}
 	}
 

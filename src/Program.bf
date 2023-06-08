@@ -12,14 +12,19 @@ class Program
 
 		Assembly a = scope .("test.asm");
 
+		Console.WriteLine("assembly read");
 
-		Memory mem = .();
+
+		Memory mem = Memory();
+
 		mem.HardLoadProgram(a.Export());
+
+		Console.WriteLine("memory copied");
 		CPU cpu = scope CPU(&mem);
-		cpu.Run(a.startAddress);
+		Console.WriteLine("cpu created");
+		cpu.Run();
 
 		Console.WriteLine($"A: {cpu.A}");
 		Console.WriteLine($"$0200: {mem[0x0200]}, $0201: {mem[0x0201]}, $0202: {mem[0x0202]}");
-
 	}
 }

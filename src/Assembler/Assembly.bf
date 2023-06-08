@@ -8,12 +8,12 @@ class Assembly
 	public Word startAddress;
 	public List<ASTNode> code;
 
-	public this(String path, Word start = 0x0200)
+	public this(String path)
 	{
-		var l = Parser.ReadLines(path);
-		if (l case .Ok(let val))
-			this.code = l;
-		this.startAddress = start;
+		var r = Parser.ReadLines(path);
+		if (r case .Ok(let val))
+			(this.code, this.startAddress) = val;
+
 	}
 
 	public ~this()
@@ -27,6 +27,15 @@ class Assembly
 	{
 		Byte[64 * 1024] r = .();
 		int i = this.startAddress - 1;
+
+		Console.WriteLine($"startpos: {startAddress}");
+
+		r[CPU.resetVector] = (Byte)startAddress;
+		Console.WriteLine($"low byte: {r[CPU.resetVector]}");
+		r[CPU.resetVector + 1] = (Byte)(startAddress >> 8);
+		Console.WriteLine($"high byte: {r[CPU.resetVector + 1]}");
+
+
 		for (var inst in this.code)
 		{
 			i++;
