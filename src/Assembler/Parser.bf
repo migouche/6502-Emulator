@@ -24,6 +24,8 @@ public static class Parser
 			int i = 0;
 			for (let val in text.Split('\n'))
 			{
+				if (val.StartsWith(';'))
+					continue;
 				if(i++ == 0 && (val.Contains(".org") || val.Contains(".ORG")))
 				{
 					Console.WriteLine(".org");

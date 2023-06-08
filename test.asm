@@ -4,6 +4,6 @@ LDA #$01
 STA $0200
 LDA #$05
 STA $0201
-
+; hey
 LDA #$08
 STA $0202
