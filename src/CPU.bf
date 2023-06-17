@@ -40,7 +40,10 @@ struct Memory
 {
 	const uint32 MAX_MEM = 64 * 1024; // 64 Kb
 	public Byte[MAX_MEM] data;
-
+	public this
+	{
+		Initialize();
+	}
 	public void Initialize() mut
 	{
 		for (uint32 i = 0; i < MAX_MEM; i++)
@@ -71,6 +74,13 @@ struct Memory
 		//Console.WriteLine($"Writing word {val} at address {addr}...");
 		this[addr] = (Byte)val;
 		this[addr + 1] = (Byte)(val >> 8);
+	}
+
+	public Word GetWord(Word address)
+	{
+		Byte lByte = this[address];
+		Byte hByte = this[address + 1];
+		return lByte | ((Word)hByte << 8);
 	}
 
 	public void HardLoadProgram(Byte[MAX_MEM] m) mut
@@ -117,7 +127,7 @@ class CPU
 	}
 
 	public Word PC; // Program Counter
-	public Byte SP; // Stack Pointer // SHOULD BE BYTE // Starts at 0xFF and goes down when branching
+	public Byte SP; // Stack Pointer // SHOULD BE BYTE // Starts at 0xFF and goes down when branching // its a byte and lets assume 0x01XX
 
 	public Byte A, X, Y; // Registers
 
@@ -129,6 +139,8 @@ class CPU
 	public int cycles;
 
 	public const Word resetVector = 0xFFFC;
+
+	public bool exit;
 
 
 	// opcodes
@@ -178,6 +190,11 @@ class CPU
 		INS_TYA = 0x98,		 /// Transfer Y to A
 		INS_TXS = 0x9A,		 /// Transfer X to Stack Pointer
 		INS_TSX = 0xBA,		 /// Transfer Stack Pointer to A
+
+		INS_PHA = 0X48,      /// Push Accumulator
+		INS_PHP = 0X08,      /// Push Processor Status
+		INS_PLA = 0X68,      /// Pull Accumulator
+		INS_PLP = 0X28,      /// Pull Processor Status
 
 		INS_AND_IM = 0x29,   /// Logical AND Immediate
 		INS_AND_ZP = 0x25,   /// Logical AND Zero Page
@@ -248,6 +265,11 @@ class CPU
 
 		INS_BIT_ZP = 0x24,   /// Bit Test Zero Page
 		INS_BIT_ABS = 0x2C,  /// Bit Test Zero Page
+
+		INS_JMP_ABS =  0x4C,
+		INS_JMP_IND  = 0x6C,
+
+		INS_NOP = 0xEA, // noop
 
 		INS_JSR = 0x20;     /// Jump to Subroutine
 
@@ -384,7 +406,15 @@ class CPU
 		instructions[INS_SEI] = (c) => c.SetFlag(ref c.I, 1);
 		instructions[INS_CLV] = (c) => c.SetFlag(ref c.V, 0);
 
+		instructions[INS_PHA] = (c) =>  c.PushToStack(c.A);
+		instructions[INS_PHP] = (c)
+
 		instructions[INS_ADC_IM] = (c) => c.AddToAccumulator(.Immediate, c.FetchByte());
+
+		instructions[INS_JMP_ABS] = (c) =>  {c.PC = c.FetchWord(); return (void)(c.cycles -= 2) /* cause we copying 2 bytes */;};
+		instructions[INS_JMP_IND] = (c) => (void)(c.PC = c.ReadWord(c.FetchWord())); // TODO fix cycles
+
+		instructions[INS_NOP] = (c) => (void)c.cycles--;
 	}
 
 
@@ -404,13 +434,13 @@ class CPU
 
 	public void Reset() // should take 7 bytes
 	{ // should code this but we emulate for now
-		Console.WriteLine("before pc");
-		Console.WriteLine(memory.Get(resetVector));
-		this.PC = memory.Get(resetVector);
-		Console.WriteLine(this.PC);
+		//Console.WriteLine("before pc");
+		//Console.WriteLine(memory.Get(resetVector));
+		this.PC = this.memory.GetWord(resetVector);
+		//Console.WriteLine(this.PC);
 		//PC = memory.Get(0xfffc);
-		Console.WriteLine("after pc");
-		SP = (Byte)0x00; // I'm supposing for now that SP = 0x01SP
+		//Console.WriteLine("after pc");
+		SP = (Byte)0xFF; // I'm supposing for now that SP = 0x01SP
 		C = Z = I = D = B = V = N = 0;
 		A = X = Y = 0;
 
@@ -430,6 +460,39 @@ class CPU
 		return data;
 	}
 
+	public Byte Status()
+	{
+		Byte r = 0;
+		r |= this.C;
+		r |= this.Z << 1;
+		r |= this.I << 2;
+		r |= this.D << 3;
+		r |= this.B << 4;
+		r |= 1 << 5;
+		r |= this.V << 6;
+		r |= this.N << 7;
+		return r;
+	}
+
+
+	// STACK POINTER IS SUPPOSED TO POINT TO THE FIRST FREE MEMORY
+
+	public void PushToStack(Byte b)
+	{
+		(*this.memory)[0x100 + this.SP] = this.A;
+		this.SP--;
+		this.cycles -= 2;
+	}
+
+	public void PullFromStack(ref Byte dest)
+	{
+		this.SP++;
+		dest = (*this.memory)[0x100 + this.SP];
+		(*this.memory)[0x100 + this.SP] = 0;
+		this.SetLoadFlags(dest);
+		this.cycles -= 3; // one more cycle cause we free
+	}
+
 	public void AddToAccumulator(LoadAdressingMode R, Byte addr)
 	{
 		AddToAccumulator(ReadByte(addr, R, true));
@@ -446,9 +509,15 @@ class CPU
 		this.V = possibleOverflow && val >> 7 !=  this.A >> 7;
 	}
 
-	public Byte FetchByte() // will rework to work with ReadByte (or not xd)
+	public Result<Byte> FetchByte() // will rework to work with ReadByte (or not xd)
 	{
-		Byte data = (*this.memory)[this.PC]; 
+		Byte data = (*this.memory)[this.PC];
+		if (this.PC == 0xFF)
+		{
+			exit = true;
+			return .Err;
+		}
+ 			
 		this.PC++;
 		cycles--;
 		return data;
@@ -465,8 +534,13 @@ class CPU
 	}
 
 
-	public Word FetchWord()
+	public Result<Word> FetchWord()
 	{
+		if(this.PC >= 0xFFFE)
+		{
+			exit = true;
+			return .Err;
+		}
 		// 6502 is little-endian
 		Word data = (*this.memory)[this.PC]; // Low byte
 		this.PC++;
@@ -610,7 +684,7 @@ class CPU
 		switch(O)
 		{
 		case .ZeroPage(let index): addr = (Byte)(this.FetchByte() + index); if (index > 0) cycles--;
-		case .Absolute(let index): addr = this.FetchWord() + index; if (index > 0) cycles--;
+		case .Absolute(let index): addr = this.FetchWord() + (Word)index; if (index > 0) cycles--;
 		}
 		 Byte val = this.ReadByte(addr, .Absolute(0));
 		 (*this.memory)[addr] = op(val);
@@ -739,29 +813,34 @@ class CPU
 		return startCycles - this.cycles;
 	}
 
-	public void Run()
+	public void Run(bool verbose = false)
 	{
-		Console.WriteLine($"PC: {this.PC}");
+		if(verbose)
+			Console.WriteLine($"starting at PC = {this.PC}");
 		//this.PC = resetVector; // may wanna call reset or something
 		while((*this.memory)[this.PC] != 0) // be better than that and add break
 		{
-			this.Tick();
+			this.Tick(verbose);
 		}
 	}
 
-	public void RunNextInstruction()
+	public void RunNextInstruction(bool verbose = false)
 	{
 		Byte instruction = this.FetchByte();
-		Console.WriteLine($"Running instruction {instruction}");
+		if (verbose)
+			Console.WriteLine($"Running instruction {instruction}");
 		this.instructions[instruction](this);
 	}
 
 
 
-	public void Tick()
+	public void Tick(bool verbose = false)
 	{
+		if(verbose)
+			Console.WriteLine("Tick");
 		this.cycles++;
 		if (this.cycles >= 0)
-			this.RunNextInstruction();
+			this.RunNextInstruction(verbose);
 	}
+	
 }

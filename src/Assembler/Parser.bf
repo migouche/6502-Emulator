@@ -22,13 +22,28 @@ public static class Parser
 			return .Err("cant find file");
 		case .Ok:
 			int i = 0;
+			text.ToUpper();
 			for (let val in text.Split('\n'))
 			{
+				var val;
 				if (val.StartsWith(';'))
 					continue;
+				if (val.Contains(';'))
+				{
+					for(int v = 0; v < val.Length; v++)
+					{
+						if(val[v] == ';')
+						{
+							val.RemoveToEnd(v);
+							break;
+						}
+					}
+				}
+
+
 				if(i++ == 0 && (val.Contains(".org") || val.Contains(".ORG")))
 				{
-					Console.WriteLine(".org");
+
 					int j = 0;
 					for (let split in val.Split(' '))
 						if(j++ == 1)
@@ -36,10 +51,16 @@ public static class Parser
 							var s = scope String(split);
 							s.Remove(0);
 							var o = Int32.Parse(s, System.Globalization.NumberStyles.HexNumber);
-							if(o case .Ok(let st))
+							switch (o)
 							{
-								Console.WriteLine($"st: {st}");
+							case .Ok(let st):
+								if(verbose)
+									Console.WriteLine($".org {st}");
+								if (st > 0xffff)
+									return .Err("Number must not be greater than 0xFFFF");
 								startAdd = (Word)st;
+							case .Err:
+								return .Err("Error parsing number");
 							}
 						}
 					if(verbose)
@@ -51,7 +72,7 @@ public static class Parser
 					continue;
 				if (verbose)
 					Console.WriteLine($"{i}: {val}");
-				var inst = ParseLine(scope String(val));
+				var inst = ParseLine(scope String(val), verbose);
 				switch (inst)
 				{
 				case .Err(let err):
@@ -69,13 +90,44 @@ public static class Parser
 		}
 	}
 
-	public static Result<ASTNode, String> ParseLine(String line)
+	public static Result<ASTNode, String> ParseLine(String line, bool verbose = false)
 	{
+		var line;
 		List<String> l = scope .();
 		defer l.ClearAndDeleteItems(); // defer is really neat
+		String label = "";
+		List<String> la = scope .();
+		defer la.ClearAndDeleteItems();
+
+		if(line.Contains(':')) // we got label
+		{
+
+
+			for(var las in line.Split(':'))
+				la.Add(new String(las));
+			if (la.Count != 2)
+				return .Err("Line may only contain one label");
+			label = la[0];
+			if(verbose)
+				Console.WriteLine($"Label: {label}");
+			line = la[1];
+			if(verbose)
+				Console.WriteLine($"Without label: {line}");
+		}
+		
+		//if(verbose)
+			//Console.WriteLine($"line after parse: {la[1]}");
+		if (verbose && label.Length > 0)
+			Console.WriteLine($"label: {label}");
+
 		for (var s in line.Split(' '))
 		{
-			l.Add(new String(s));
+			if(s.Length > 0)
+			{
+				if (verbose)
+					Console.WriteLine($"adding \"{s}\" ");
+				l.Add(new String(s));
+			}
 		}
 
 		if (l.Count > 2 || l.Count == 0)
@@ -83,25 +135,30 @@ public static class Parser
 
 		if(l.Count == 1) //
 		{
-			return InstructionToASTNode(Instruction(l[0], .Implied), .None);
+			return .Ok(InstructionToASTNode(Instruction(l[0], .Implied), .None, label, true));
 		}
 		else if (l.Count == 2)
 		{
-			var result = GetArgument(l[1]);
+			var result = GetArgument(l[1], verbose);
 			switch(result)
 			{
 			case .Err(let err):
 				return .Err(err);
 			case .Ok(let val):
 				var (arg, op) = val;
-				return InstructionToASTNode(Instruction(l[0], op), arg);
+				var ins = InstructionToASTNode(Instruction(l[0], op), arg, label, true);
+				switch (ins)
+				{
+				case .Ok(let val5): return .Ok(val5);
+				case .Err: return .Err("Instruction not found");
+				}
 			}
 		}
 		
-		return .Ok(ASTNode(0)); // FIXME
+		return .Ok(new .(0)); // FIXME
 	}
 
-	public static Result<ASTNode, String> InstructionToASTNode(Instruction i, Argument a)
+	public static Result<ASTNode, String> InstructionToASTNode(Instruction i, Argument a, String l, bool verbose = false)
 	{
 		var r = AST.codes.GetValue(i);
 		switch (r)
@@ -109,11 +166,11 @@ public static class Parser
 		case .Err:
 			return .Err("Instruction not found");
 		case .Ok(let val):
-			return .Ok(ASTNode(val.instruction, a));
+			return .Ok(new .(val.instruction, a, l, verbose));
 		}
 	}
 
-	public static Result<(Argument, OpMode), String> GetArgument(String s)
+	public static Result<(Argument, OpMode), String> GetArgument(String s, bool verbose = false)
 	{
 		switch(s[0])
 		{
@@ -249,6 +306,10 @@ public static class Parser
 				}
 
 			}
+		default: // should be a label
+			if (verbose)
+				Console.WriteLine($"returning label {s}");
+			return .Ok((.Label(new .(s)), .Absolute));
 			
 		}
 

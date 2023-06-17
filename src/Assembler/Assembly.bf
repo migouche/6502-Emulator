@@ -8,11 +8,18 @@ class Assembly
 	public Word startAddress;
 	public List<ASTNode> code;
 
-	public this(String path)
+	public this(String path, bool verbose = false)
 	{
-		var r = Parser.ReadLines(path);
-		if (r case .Ok(let val))
+		var r = Parser.ReadLines(path, true);
+		switch(r)
+		{
+		case .Ok(let val):
 			(this.code, this.startAddress) = val;
+			if(verbose)
+				Console.WriteLine($"Start Address will be {this.startAddress}");
+		case .Err(let err):
+			Console.WriteLine($"Error reading assembly: {err}");
+		}
 
 	}
 
@@ -23,23 +30,31 @@ class Assembly
 
 	public void Add(ASTNode a) => code.Add(a);
 
-	public Byte[64 * 1024] Export()
+	public Byte[64 * 1024] Export(bool verbose = false)
 	{
+		Dictionary<String, Word> labels = scope .();
+		if(verbose)
+			Console.WriteLine("\n\nAssembling\n");
 		Byte[64 * 1024] r = .();
-		int i = this.startAddress - 1;
+		Word i = this.startAddress - 1;
 
-		Console.WriteLine($"startpos: {startAddress}");
+		//Console.WriteLine($"startpos: {startAddress}");
 
 		r[CPU.resetVector] = (Byte)startAddress;
-		Console.WriteLine($"low byte: {r[CPU.resetVector]}");
+		//Console.WriteLine($"low byte: {r[CPU.resetVector]}");
 		r[CPU.resetVector + 1] = (Byte)(startAddress >> 8);
-		Console.WriteLine($"high byte: {r[CPU.resetVector + 1]}");
+		//Console.WriteLine($"high byte: {r[CPU.resetVector + 1]}");
 
 
 		for (var inst in this.code)
 		{
 			i++;
 			r[i] = inst.instruction;
+			if (verbose)
+				inst.Debug();
+			if (!inst.label.IsEmpty)
+				labels.Add(new .(inst.label), i);
+			
 			switch(inst.argument)
 			{
 			case .Byte(let b):
@@ -50,9 +65,38 @@ class Assembly
 				r[i] = (Byte)w;
 				i++;
 				r[i] = (Byte)(w >> 8);
+			case .Label:
+				i+=2;
 			case .None:
+				// gotta do stuff
 			}
 		}
+		i = this.startAddress - 1;
+
+
+
+		for (var inst in this.code)
+		{
+			i++;
+			switch(inst.argument)
+			{
+			case .Byte: i++;
+			case .Word: i+=2;
+			case .None:
+			case .Label(let s):
+				Word r2 = labels.GetValue(s);
+				i++;
+				r[i] = (Byte)r2;
+				i++;
+				r[i] = (Byte)(r2 >> 8);
+
+			}
+			delete inst;
+		}
+		for (var kv in labels)
+			delete kv.key;
+		if (verbose)
+			Console.WriteLine("Finished assembling\n");
 		return r;
 	}
 }

@@ -7,6 +7,7 @@ enum OpMode
 	case Implied; // i
 	case Immediate; // #
 	case Absolute; // a
+	//case Label; // works like absolute may work if we leave it at absolute
 	case ZeroPage; // zp
 	case Relative;; // r
 	case AbsoluteIndirect; // a (only used by jump expressions)
@@ -28,6 +29,7 @@ enum Argument: IHashable
 	case None;
 	case Byte(Byte b);
 	case Word(Word w);
+	case Label(String s);
 
 	public int GetHashCode()
 	{
@@ -36,9 +38,11 @@ enum Argument: IHashable
 		case None:
 			return 0;
 		case Byte(let b):
-			 return 0xff + b;
+			 return b.GetHashCode();
 		case Word(let w):
-			return 0xffff + w;
+			return w.GetHashCode();
+		case Label(let s):
+			return s.GetHashCode();
 		}
 	}
 }
@@ -60,26 +64,52 @@ struct Instruction: IHashable
 	}
 
 	public static bool operator==(Instruction lhs, Instruction rhs) => lhs.instruction == rhs.instruction && lhs.mode == rhs.mode;
-
 }
 
 
-struct ASTNode
+class ASTNode
 {
+	
 	public Byte instruction;
 	public Argument argument = .None;
+	public String label;
 
 	public this(Byte i)
 	{
 		this.instruction = i;
+		this.label = new .("");
 	}
 
-	public this(Byte i, Argument a)
+	public this(Byte i, Argument a, String l, bool verbose = false)
 	{
 		this.instruction = i;
 		this.argument = a;
+		this.label = new .(l);
+		if (verbose)
+			Console.WriteLine($"got label: {l} / {this.label}");
+
 	}
 
+	public this(Byte i, String label1, String label2)
+	{
+		this.instruction = i;
+		this.label = new .(label1); 
+		this.argument = .Label(new .(label2));
+	}
+
+	public void Debug()
+	{
+		Console.WriteLine($"label size: {label.Length}");
+		if(!label.IsEmpty)
+			Console.WriteLine($"label: {label}");
+	}
+
+	public ~this()
+	{
+		delete label;
+		if(this.argument case .Label(let s))
+			delete s;
+	}
 }
 
 
@@ -88,122 +118,126 @@ static class AST
 
 	public static Dictionary<Instruction, ASTNode> codes = new Dictionary<Instruction, ASTNode>(){
 		//codes = new .();
-		(.("LDA", .Immediate), .(CPU.INS_LDA_IM)),
-		(.("LDA", .ZeroPage), .(CPU.INS_LDA_ZP)),
-		(.("LDA", .ZeroPageX), .(CPU.INS_LDA_ZPX)),
-		(.("LDA", .Absolute), .(CPU.INS_LDA_ABS)),
-		(.("LDA", .AbsoluteX), .(CPU.INS_LDA_ABSX)),
-		(.("LDA", .AbsoluteY), .(CPU.INS_LDA_ABSY)),
-		(.("LDA", .ZeroPageIndirectX), .(CPU.INS_LDA_INDX)),
-		(.("LDA", .ZeroPageInirectY), .(CPU.INS_LDA_INDY)),
+		(.("LDA", .Immediate), new .(CPU.INS_LDA_IM)),
+		(.("LDA", .ZeroPage), new .(CPU.INS_LDA_ZP)),
+		(.("LDA", .ZeroPageX), new .(CPU.INS_LDA_ZPX)),
+		(.("LDA", .Absolute), new .(CPU.INS_LDA_ABS)),
+		(.("LDA", .AbsoluteX), new .(CPU.INS_LDA_ABSX)),
+		(.("LDA", .AbsoluteY), new .(CPU.INS_LDA_ABSY)),
+		(.("LDA", .ZeroPageIndirectX), new .(CPU.INS_LDA_INDX)),
+		(.("LDA", .ZeroPageInirectY), new .(CPU.INS_LDA_INDY)),
 
-		(.("LDX", .Immediate), .(CPU.INS_LDX_IM)),
-		(.("LDX", .ZeroPage), .(CPU.INS_LDX_ZP)),
-		(.("LDX", .ZeroPageY), .(CPU.INS_LDX_ZPY)),
-		(.("LDX", .Absolute), .(CPU.INS_LDX_ABS)),
-		(.("LDX", .AbsoluteY), .(CPU.INS_LDX_ABSY)),
+		(.("LDX", .Immediate), new .(CPU.INS_LDX_IM)),
+		(.("LDX", .ZeroPage), new .(CPU.INS_LDX_ZP)),
+		(.("LDX", .ZeroPageY), new  .(CPU.INS_LDX_ZPY)),
+		(.("LDX", .Absolute), new .(CPU.INS_LDX_ABS)),
+		(.("LDX", .AbsoluteY), new .(CPU.INS_LDX_ABSY)),
 
-		(.("LDY", .Immediate), .(CPU.INS_LDY_IM)),
-		(.("LDY", .ZeroPage), .(CPU.INS_LDY_ZP)),
-		(.("LDY", .ZeroPageX), .(CPU.INS_LDY_ZPX)),
-		(.("LDY", .Absolute), .(CPU.INS_LDY_ABS)),
-		(.("LDY", .AbsoluteX), .(CPU.INS_LDY_ABSX)),
+		(.("LDY", .Immediate), new .(CPU.INS_LDY_IM)),
+		(.("LDY", .ZeroPage), new .(CPU.INS_LDY_ZP)),
+		(.("LDY", .ZeroPageX), new .(CPU.INS_LDY_ZPX)),
+		(.("LDY", .Absolute), new .(CPU.INS_LDY_ABS)),
+		(.("LDY", .AbsoluteX), new .(CPU.INS_LDY_ABSX)),
 
-		(.("STA", .ZeroPage), .(CPU.INS_STA_ZP)),
-		(.("STA", .ZeroPageX), .(CPU.INS_STA_ZPX)),
-		(.("STA", .Absolute), .(CPU.INS_STA_ABS)),
-		(.("STA", .AbsoluteX), .(CPU.INS_STA_ABSX)),
-		(.("STA", .AbsoluteY), .(CPU.INS_STA_ABSY)),
-		(.("STA", .ZeroPageIndirectX), .(CPU.INS_STA_INDX)),
-		(.("STA", .ZeroPageInirectY), .(CPU.INS_STA_INDY)),
+		(.("STA", .ZeroPage), new .(CPU.INS_STA_ZP)),
+		(.("STA", .ZeroPageX), new .(CPU.INS_STA_ZPX)),
+		(.("STA", .Absolute),new .(CPU.INS_STA_ABS)),
+		(.("STA", .AbsoluteX),new .(CPU.INS_STA_ABSX)),
+		(.("STA", .AbsoluteY),new .(CPU.INS_STA_ABSY)),
+		(.("STA", .ZeroPageIndirectX),new .(CPU.INS_STA_INDX)),
+		(.("STA", .ZeroPageInirectY),new .(CPU.INS_STA_INDY)),
 
-		(.("STX", .ZeroPage), .(CPU.INS_STX_ZP)),
-		(.("STX", .ZeroPageY), .(CPU.INS_STX_ZPY)),
-		(.("STX", .Absolute), .(CPU.INS_STX_ABS)),
+		(.("STX", .ZeroPage),new .(CPU.INS_STX_ZP)),
+		(.("STX", .ZeroPageY),new .(CPU.INS_STX_ZPY)),
+		(.("STX", .Absolute),new .(CPU.INS_STX_ABS)),
 
-		(.("STY", .ZeroPage), .(CPU.INS_STY_ZP)),
-		(.("STY", .ZeroPageX), .(CPU.INS_STY_ZPX)),
-		(.("STY", .Absolute), .(CPU.INS_STY_ABS)),
+		(.("STY", .ZeroPage),new .(CPU.INS_STY_ZP)),
+		(.("STY", .ZeroPageX),new .(CPU.INS_STY_ZPX)),
+		(.("STY", .Absolute),new .(CPU.INS_STY_ABS)),
 
-		(.("TAX", .Implied), .(CPU.INS_TAX)),
-		(.("TXA", .Implied), .(CPU.INS_TXA)),
-		(.("TAY", .Implied), .(CPU.INS_TAY)),
-		(.("TYA", .Implied), .(CPU.INS_TYA)),
-		(.("TSX", .Implied), .(CPU.INS_TSX)),
-		(.("TXS", .Implied), .(CPU.INS_TXS)),
+		(.("TAX", .Implied),new .(CPU.INS_TAX)),
+		(.("TXA", .Implied),new .(CPU.INS_TXA)),
+		(.("TAY", .Implied),new .(CPU.INS_TAY)),
+		(.("TYA", .Implied),new .(CPU.INS_TYA)),
+		(.("TSX", .Implied),new .(CPU.INS_TSX)),
+		(.("TXS", .Implied),new .(CPU.INS_TXS)),
 
-		(.("AND", .Immediate), .(CPU.INS_AND_IM)),
-		(.("AND", .ZeroPage), .(CPU.INS_AND_ZP)),
-		(.("AND", .ZeroPageX), .(CPU.INS_AND_ZPX)),
-		(.("AND", .Absolute), .(CPU.INS_AND_ABS)),
-		(.("AND", .AbsoluteX), .(CPU.INS_AND_ABSX)),
-		(.("AND", .AbsoluteY), .(CPU.INS_AND_ABSY)),
-		(.("AND", .ZeroPageIndirectX), .(CPU.INS_AND_INDX)),
-		(.("AND", .ZeroPageInirectY), .(CPU.INS_AND_INDY)),
+		(.("AND", .Immediate),new .(CPU.INS_AND_IM)),
+		(.("AND", .ZeroPage),new .(CPU.INS_AND_ZP)),
+		(.("AND", .ZeroPageX),new .(CPU.INS_AND_ZPX)),
+		(.("AND", .Absolute),new .(CPU.INS_AND_ABS)),
+		(.("AND", .AbsoluteX),new .(CPU.INS_AND_ABSX)),
+		(.("AND", .AbsoluteY),new .(CPU.INS_AND_ABSY)),
+		(.("AND", .ZeroPageIndirectX),new .(CPU.INS_AND_INDX)),
+		(.("AND", .ZeroPageInirectY),new .(CPU.INS_AND_INDY)),
 
-		(.("EOR", .Immediate), .(CPU.INS_EOR_IM)),
-		(.("EOR", .ZeroPage), .(CPU.INS_EOR_ZP)),
-		(.("EOR", .ZeroPageX), .(CPU.INS_EOR_ZPX)),
-		(.("EOR", .Absolute), .(CPU.INS_EOR_ABS)),
-		(.("EOR", .AbsoluteX), .(CPU.INS_EOR_ABSX)),
-		(.("EOR", .AbsoluteY), .(CPU.INS_EOR_ABSY)),
-		(.("EOR", .ZeroPageIndirectX), .(CPU.INS_EOR_INDX)),
-		(.("EOR", .ZeroPageInirectY), .(CPU.INS_EOR_INDY)),
+		(.("EOR", .Immediate),new .(CPU.INS_EOR_IM)),
+		(.("EOR", .ZeroPage),new .(CPU.INS_EOR_ZP)),
+		(.("EOR", .ZeroPageX),new .(CPU.INS_EOR_ZPX)),
+		(.("EOR", .Absolute),new .(CPU.INS_EOR_ABS)),
+		(.("EOR", .AbsoluteX),new .(CPU.INS_EOR_ABSX)),
+		(.("EOR", .AbsoluteY),new .(CPU.INS_EOR_ABSY)),
+		(.("EOR", .ZeroPageIndirectX),new .(CPU.INS_EOR_INDX)),
+		(.("EOR", .ZeroPageInirectY),new .(CPU.INS_EOR_INDY)),
 
-		(.("ORA", .Immediate), .(CPU.INS_ORA_IM)),
-		(.("ORA", .ZeroPage), .(CPU.INS_ORA_ZP)),
-		(.("ORA", .ZeroPageX), .(CPU.INS_ORA_ZPX)),
-		(.("ORA", .Absolute), .(CPU.INS_ORA_ABS)),
-		(.("ORA", .AbsoluteX), .(CPU.INS_ORA_ABSX)),
-		(.("ORA", .AbsoluteY), .(CPU.INS_ORA_ABSY)),
-		(.("ORA", .ZeroPageIndirectX), .(CPU.INS_ORA_INDX)),
-		(.("ORA", .ZeroPageInirectY), .(CPU.INS_ORA_INDY)),
+		(.("ORA", .Immediate),new .(CPU.INS_ORA_IM)),
+		(.("ORA", .ZeroPage),new .(CPU.INS_ORA_ZP)),
+		(.("ORA", .ZeroPageX),new .(CPU.INS_ORA_ZPX)),
+		(.("ORA", .Absolute),new .(CPU.INS_ORA_ABS)),
+		(.("ORA", .AbsoluteX),new .(CPU.INS_ORA_ABSX)),
+		(.("ORA", .AbsoluteY),new .(CPU.INS_ORA_ABSY)),
+		(.("ORA", .ZeroPageIndirectX),new .(CPU.INS_ORA_INDX)),
+		(.("ORA", .ZeroPageInirectY),new .(CPU.INS_ORA_INDY)),
 
-		(.("DEC", .ZeroPage), .(CPU.INS_DEC_ZP)),
-		(.("DEC", .ZeroPageX), .(CPU.INS_DEC_ZPX)),
-		(.("DEC", .Absolute), .(CPU.INS_DEC_ABS)),
-		(.("DEC", .AbsoluteX), .(CPU.INS_DEC_ABSX)),
+		(.("DEC", .ZeroPage),new .(CPU.INS_DEC_ZP)),
+		(.("DEC", .ZeroPageX),new .(CPU.INS_DEC_ZPX)),
+		(.("DEC", .Absolute),new .(CPU.INS_DEC_ABS)),
+		(.("DEC", .AbsoluteX),new .(CPU.INS_DEC_ABSX)),
 
-		(.("DEX", .Implied), .(CPU.INS_DEX)),
-		(.("DEY", .Implied), .(CPU.INS_DEY)),
+		(.("DEX", .Implied),new .(CPU.INS_DEX)),
+		(.("DEY", .Implied),new .(CPU.INS_DEY)),
 
-		(.("CMP", .Immediate), .(CPU.INS_CMP_IM)),
-		(.("CMP", .ZeroPage), .(CPU.INS_CMP_ZP)),
-		(.("CMP", .ZeroPageX), .(CPU.INS_CMP_ZPX)),
-		(.("CMP", .Absolute), .(CPU.INS_CMP_ABS)),
-		(.("CMP", .AbsoluteX), .(CPU.INS_CMP_ABSX)),
-		(.("CMP", .AbsoluteY), .(CPU.INS_CMP_ABSY)),
-		(.("CMP", .ZeroPageIndirectX), .(CPU.INS_CMP_INDX)),
-		(.("CMP", .ZeroPageInirectY), .(CPU.INS_CMP_INDY)),
+		(.("CMP", .Immediate),new .(CPU.INS_CMP_IM)),
+		(.("CMP", .ZeroPage),new .(CPU.INS_CMP_ZP)),
+		(.("CMP", .ZeroPageX),new .(CPU.INS_CMP_ZPX)),
+		(.("CMP", .Absolute),new .(CPU.INS_CMP_ABS)),
+		(.("CMP", .AbsoluteX),new .(CPU.INS_CMP_ABSX)),
+		(.("CMP", .AbsoluteY),new .(CPU.INS_CMP_ABSY)),
+		(.("CMP", .ZeroPageIndirectX),new .(CPU.INS_CMP_INDX)),
+		(.("CMP", .ZeroPageInirectY),new .(CPU.INS_CMP_INDY)),
 
-		(.("CPX", .Immediate), .(CPU.INS_CPX_IM)),
-		(.("CPX", .ZeroPage), .(CPU.INS_CPX_ZP)),
-		(.("CPX", .Absolute), .(CPU.INS_CPX_ABS)),
+		(.("CPX", .Immediate),new .(CPU.INS_CPX_IM)),
+		(.("CPX", .ZeroPage),new .(CPU.INS_CPX_ZP)),
+		(.("CPX", .Absolute),new .(CPU.INS_CPX_ABS)),
 
-		(.("CPY", .Immediate), .(CPU.INS_CPY_IM)),
-		(.("CPY", .ZeroPage), .(CPU.INS_CPY_ZP)),
-		(.("CPY", .Absolute), .(CPU.INS_CPY_ABS)),
+		(.("CPY", .Immediate),new .(CPU.INS_CPY_IM)),
+		(.("CPY", .ZeroPage),new .(CPU.INS_CPY_ZP)),
+		(.("CPY", .Absolute),new .(CPU.INS_CPY_ABS)),
 
-		(.("CLC", .Implied), .(CPU.INS_CLC)),
-		(.("CLD", .Implied), .(CPU.INS_CLD)),
-		(.("CLI", .Implied), .(CPU.INS_CLI)),
-		(.("CLV", .Implied), .(CPU.INS_CLV)),
+		(.("CLC", .Implied),new .(CPU.INS_CLC)),
+		(.("CLD", .Implied),new .(CPU.INS_CLD)),
+		(.("CLI", .Implied),new .(CPU.INS_CLI)),
+		(.("CLV", .Implied),new .(CPU.INS_CLV)),
 
-		(.("SEC", .Implied), .(CPU.INS_SEC)),
-		(.("SED", .Implied), .(CPU.INS_SED)),
-		(.("SEI", .Implied), .(CPU.INS_SEI)),
+		(.("SEC", .Implied),new .(CPU.INS_SEC)),
+		(.("SED", .Implied),new .(CPU.INS_SED)),
+		(.("SEI", .Implied),new .(CPU.INS_SEI)),
 
-		(.("ADC", .Immediate), .(CPU.INS_ADC_IM)),
-		(.("ADC", .ZeroPage), .(CPU.INS_ADC_ZP)),
-		(.("ADC", .ZeroPageX), .(CPU.INS_ADC_ZPX)),
-		(.("ADC", .Absolute), .(CPU.INS_ADC_ABS)),
-		(.("ADC", .AbsoluteX), .(CPU.INS_ADC_ABSX)),
-		(.("ADC", .AbsoluteY), .(CPU.INS_ADC_ABSY)),
-		(.("ADC", .ZeroPageIndirectX), .(CPU.INS_ADC_INDX)),
-		(.("ADC", .ZeroPageInirectY), .(CPU.INS_ADC_INDY)),
+		(.("ADC", .Immediate),new .(CPU.INS_ADC_IM)),
+		(.("ADC", .ZeroPage),new .(CPU.INS_ADC_ZP)),
+		(.("ADC", .ZeroPageX),new .(CPU.INS_ADC_ZPX)),
+		(.("ADC", .Absolute),new .(CPU.INS_ADC_ABS)),
+		(.("ADC", .AbsoluteX),new .(CPU.INS_ADC_ABSX)),
+		(.("ADC", .AbsoluteY),new .(CPU.INS_ADC_ABSY)),
+		(.("ADC", .ZeroPageIndirectX),new .(CPU.INS_ADC_INDX)),
+		(.("ADC", .ZeroPageInirectY),new .(CPU.INS_ADC_INDY)),
 
-		(.("BIT", .ZeroPage), .(CPU.INS_BIT_ZP)),
-		(.("BIT", .Absolute), .(CPU.INS_BIT_ABS))
+		(.("BIT", .ZeroPage),new .(CPU.INS_BIT_ZP)),
+		(.("BIT", .Absolute),new .(CPU.INS_BIT_ABS)),
+
+		(.("JMP", .Absolute), new .(CPU.INS_JMP_ABS)),
+
+		(.("NOP", .Implied), new .(CPU.INS_NOP))
 	};
 
 	public static void Stop()
@@ -213,6 +247,9 @@ static class AST
 
 	public static ~this()
 	{
+		for (var k in codes)
+			delete k.value;
+		
 		delete codes;
 	}
 }
