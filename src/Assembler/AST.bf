@@ -237,7 +237,13 @@ static class AST
 
 		(.("JMP", .Absolute), new .(CPU.INS_JMP_ABS)),
 
-		(.("NOP", .Implied), new .(CPU.INS_NOP))
+		(.("NOP", .Implied), new .(CPU.INS_NOP)),
+
+		(.("PHA", .Implied), new .(CPU.INS_PHA)),
+		(.("PHP", .Implied), new .(CPU.INS_PHP)),
+		(.("PLA", .Implied), new .(CPU.INS_PLA)),
+		(.("PLP", .Implied), new .(CPU.INS_PLP)),
+
 	};
 
 	public static void Stop()

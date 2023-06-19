@@ -407,7 +407,9 @@ class CPU
 		instructions[INS_CLV] = (c) => c.SetFlag(ref c.V, 0);
 
 		instructions[INS_PHA] = (c) =>  c.PushToStack(c.A);
-		instructions[INS_PHP] = (c)
+		instructions[INS_PHP] = (c) => c.PushToStack(c.Status);
+		instructions[INS_PLA] = (c) => c.PullFromStack(ref c.A);
+		instructions[INS_PLP] = (c) => (void)(c.Status =  c.PullFromStack());
 
 		instructions[INS_ADC_IM] = (c) => c.AddToAccumulator(.Immediate, c.FetchByte());
 
@@ -460,37 +462,65 @@ class CPU
 		return data;
 	}
 
-	public Byte Status()
+	public Byte Status
 	{
-		Byte r = 0;
-		r |= this.C;
-		r |= this.Z << 1;
-		r |= this.I << 2;
-		r |= this.D << 3;
-		r |= this.B << 4;
-		r |= 1 << 5;
-		r |= this.V << 6;
-		r |= this.N << 7;
-		return r;
+		get{
+			Byte r = 0;
+			r |= this.C;
+			r |= this.Z << 1;
+			r |= this.I << 2;
+			r |= this.D << 3;
+			r |= this.B << 4; // careful with this one
+			r |= 1 << 5;
+			r |= this.V << 6;
+			r |= this.N << 7;
+			return r;
+		}
+
+		set
+		{
+			this.C = value & 1;
+			this.Z = value & (1 << 1);
+			this.I = value & (1 << 2);
+			this.D = value & (1 << 3);
+			this.B = value & (1 << 4);
+			// nothing at bit 5
+			this.V = value & (1 << 6);
+			this.N = value & (1 << 7);
+		}
 	}
 
 
 	// STACK POINTER IS SUPPOSED TO POINT TO THE FIRST FREE MEMORY
 
 	public void PushToStack(Byte b)
-	{
+	{   // push and decrease sp
 		(*this.memory)[0x100 + this.SP] = this.A;
 		this.SP--;
 		this.cycles -= 2;
 	}
+	public Byte PullFromStack()
+	{
+		// increase sp and pull
+		this.SP++;
+		Byte r = (*this.memory)[0x100 + this.SP];
+		//(*this.memory)[0x100 + this.SP] = 0;
+		this.SetLoadFlags(r);
+		this.cycles -= 3;
+		return r;
+	}
 
+
+	public void PrintStack()
+	{
+		for (Word i = 0x1ff; i > 0x100 + this.SP; i--)
+			Console.WriteLine($"{i}: {(*this.memory)[i]}");
+	}
+	
 	public void PullFromStack(ref Byte dest)
 	{
-		this.SP++;
-		dest = (*this.memory)[0x100 + this.SP];
-		(*this.memory)[0x100 + this.SP] = 0;
-		this.SetLoadFlags(dest);
-		this.cycles -= 3; // one more cycle cause we free
+		// increase sp and pull
+		dest = PullFromStack();
 	}
 
 	public void AddToAccumulator(LoadAdressingMode R, Byte addr)
