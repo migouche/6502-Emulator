@@ -6,6 +6,7 @@ namespace CPU_6502.Assembler;
 class Assembly
 {
 	public Word startAddress;
+	public String interruptLabel;
 	public List<ASTNode> code;
 
 	public this(String path, bool verbose = false)
@@ -14,7 +15,7 @@ class Assembly
 		switch(r)
 		{
 		case .Ok(let val):
-			(this.code, this.startAddress) = val;
+			(this.code, (this.startAddress, this.interruptLabel)) = val;
 			if(verbose)
 				Console.WriteLine($"Start Address will be {this.startAddress}");
 		case .Err(let err):
@@ -34,7 +35,10 @@ class Assembly
 	{
 		Dictionary<String, Word> labels = scope .();
 		if(verbose)
+		{
 			Console.WriteLine("\n\nAssembling\n");
+			Console.WriteLine($".brk label: {this.interruptLabel}");
+		}
 		Byte[64 * 1024] r = .();
 		Word i = this.startAddress - 1;
 
@@ -44,7 +48,6 @@ class Assembly
 		//Console.WriteLine($"low byte: {r[CPU.resetVector]}");
 		r[CPU.resetVector + 1] = (Byte)(startAddress >> 8);
 		//Console.WriteLine($"high byte: {r[CPU.resetVector + 1]}");
-
 
 		for (var inst in this.code)
 		{
@@ -68,7 +71,8 @@ class Assembly
 			case .Label:
 				i+=2;
 			case .None:
-				// gotta do stuff
+				if (inst.instruction == CPU.INS_BRK)
+					i++; // padding byte
 			}
 		}
 		i = this.startAddress - 1;
@@ -93,8 +97,22 @@ class Assembly
 			}
 			delete inst;
 		}
+
+		var brk = labels.GetValue(this.interruptLabel);
+		if (brk case .Ok(let ad))
+		{
+			if(verbose)
+				Console.WriteLine($"interrupt address: {ad}");
+			r[CPU.interruptVector] = (Byte)ad;
+			r[CPU.interruptVector + 1] = (Byte)(ad >> 8);
+		}
+		else
+			if (verbose)
+				Console.WriteLine("No .brk");
+
 		for (var kv in labels)
 			delete kv.key;
+		delete interruptLabel;
 		if (verbose)
 			Console.WriteLine("Finished assembling\n");
 		return r;

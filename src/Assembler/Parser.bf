@@ -8,12 +8,13 @@ namespace CPU_6502.Assembler;
 
 public static class Parser
 {
-	public static Result<(List<ASTNode>, Word), String> ReadLines(String path, bool verbose = false)
+	public static Result<(List<ASTNode>, (Word, String)), String> ReadLines(String path, bool verbose = false)
 	{
 		String text = scope .();
 		List<ASTNode> l = new .();
 		var r = File.ReadAllText(path, text);
 		Word startAdd = 0x0200;
+		String interruptLabel = new .();
 		switch(r)
 		{
 		case .Err(let err):
@@ -41,8 +42,10 @@ public static class Parser
 				}
 
 
-				if(i++ == 0 && (val.Contains(".org") || val.Contains(".ORG")))
+				if(val.Contains(".org") || val.Contains(".ORG"))
 				{
+					if(verbose)
+						Console.WriteLine("Found .org");
 
 					int j = 0;
 					for (let split in val.Split(' '))
@@ -65,9 +68,32 @@ public static class Parser
 						}
 					if(verbose)
 						Console.WriteLine($"{i}: .org {startAdd}");
+					i++;
 					continue;
-
 				}
+
+				if(val.Contains(".brk") || val.Contains(".BRK"))
+				{
+					if (verbose)
+						Console.WriteLine("Found .brk");
+				 	List<String> lbls = scope List<String>();
+					defer lbls.ClearAndDeleteItems();
+					for (var split in val.Split(' '))
+						if (!split.IsEmpty)
+							lbls.Add(new .(split));
+
+					if (lbls.Count != 2)
+						return .Err(".brk must have only one label");
+					delete interruptLabel;
+					interruptLabel = new .(lbls[1]);
+					if (verbose)
+						Console.WriteLine($"brk label: {interruptLabel}");
+					if(verbose)
+						Console.WriteLine($"{i}: .brk label: {interruptLabel}");
+					i++;
+					continue;
+				}
+
 				if(val.IsWhiteSpace)
 					continue;
 				if (verbose)
@@ -86,7 +112,7 @@ public static class Parser
 					l.Add(ins);
 				}
 			}
-			return .Ok((l, startAdd));
+			return .Ok((l, (startAdd, interruptLabel)));
 		}
 	}
 

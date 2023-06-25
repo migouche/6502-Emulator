@@ -1,5 +1,5 @@
 using System;
-
+using CPU_6502.Assembler;
 
 namespace CPU_6502;
 
@@ -47,7 +47,7 @@ struct Memory
 	public void Initialize() mut
 	{
 		for (uint32 i = 0; i < MAX_MEM; i++)
-			this.data[i] = 0;
+			this.data[i] = 0xEA;
 	}
 
 	public Byte Get(Word i)
@@ -138,7 +138,7 @@ class CPU
 	public Memory* memory;
 	public int cycles;
 
-	public const Word resetVector = 0xFFFC;
+	public const Word resetVector = 0xFFFC, interruptVector = 0xFFFE;
 
 	public bool exit;
 
@@ -223,6 +223,13 @@ class CPU
 		INS_ORA_INDX = 0x01, /// Logical OR Indirect X
 		INS_ORA_INDY = 0x11, /// Logical OR Indirect Y
 
+		INS_INC_ZP = 0xE6,   /// Increment Memory Zero Page
+		INS_INC_ZPX = 0xF6,  /// Increment Memory Zero Page X
+		INS_INC_ABS = 0xEE,  /// Increment Memory Absolute
+		INS_INC_ABSX = 0xFE, /// Increment Memory Absolute X
+		INS_INX = 0xE8,	     /// Increment X Register
+		INS_INY = 0xC8,      /// Increment Y Register
+
 		INS_DEC_ZP = 0xC6,   /// Decrement Memory Zero Page
 		INS_DEC_ZPX = 0xD6,	 /// Decrement Memory Zero Page X
 		INS_DEC_ABS = 0xCE,  /// Decrement Memory Absolute
@@ -269,11 +276,12 @@ class CPU
 		INS_JMP_ABS =  0x4C,
 		INS_JMP_IND  = 0x6C,
 
-		INS_NOP = 0xEA, // noop
+		INS_NOP = 0xEA,      /// No-op
+		INS_BRK = 0X00,      /// Break
+		INS_RTI = 0x40,      /// Return from Interrupt
+		INS_JSR = 0x20;      /// Jump to Subroutine
 
-		INS_JSR = 0x20;     /// Jump to Subroutine
-
-	public function Result<void, String>(CPU)[] instructions = new function Result<void, String>(CPU)[0xFF];
+	public function Result<void, String>(CPU c)[] instructions = new function Result<void, String>(CPU c)[0xFF];
 
 
 	public this
@@ -356,6 +364,13 @@ class CPU
 		instructions[INS_ORA_INDX] = (c) => c.FetchByteToRegister(.A, .IndirectX, (a, m) => a | m);
 		instructions[INS_ORA_INDY] = (c) => c.FetchByteToRegister(.A, .IndirectY, (a, m) => a | m);
 
+		instructions[INS_INX] = (c) => c.WriteVal(.X, (r) => r + 1);
+		instructions[INS_INY] = (c) => c.WriteVal(.Y, (r) => r + 1);
+		instructions[INS_INC_ZP] = (c) => c.WriteVal(.ZeroPage(0), (r) => r + 1);
+		instructions[INS_INC_ZPX] = (c) => c.WriteVal(.ZeroPage(c.X), (r) => r + 1);
+		instructions[INS_INC_ABS] = (c) => c.WriteVal(.Absolute(0), (r) => r + 1);
+		instructions[INS_INC_ABSX] = (c) => c.WriteVal(.Absolute(c.X), (r) => r + 1);
+
 		instructions[INS_DEX] = (c) => c.WriteVal(.X, (r) => r - 1);
 		instructions[INS_DEY] = (c) => c.WriteVal(.Y, (r) => r - 1);
 		instructions[INS_DEC_ZP] = (c) => c.WriteVal(.ZeroPage(0), (r) => r - 1);
@@ -417,6 +432,26 @@ class CPU
 		instructions[INS_JMP_IND] = (c) => (void)(c.PC = c.ReadWord(c.FetchWord())); // TODO fix cycles
 
 		instructions[INS_NOP] = (c) => (void)c.cycles--;
+
+		instructions[INS_BRK] = (c) =>
+		{ // gonna hard-code the cycles on this one cause ill die if not
+			c.PushToStack(c.PC + 1, false);
+			Console.WriteLine($"BRK and pushed {c.PC + 1}");
+			c.B = 1;
+			c.PushToStack(c.Status);
+			c.B = 0;
+			c.PC = c.memory.GetWord(CPU.interruptVector);
+			return (void)(c.cycles -= 6);
+		};
+
+		instructions[INS_RTI] = (c) =>
+		{
+			c.Status = c.PullFromStack(false);
+			c.B = 0;
+			c.PC = c.PullWordFromStack(false);
+			Console.WriteLine($"RTI and retrieving {c.PC}");
+			return (void)(c.cycles -= 5);
+		};
 	}
 
 
@@ -483,7 +518,7 @@ class CPU
 			this.Z = value & (1 << 1);
 			this.I = value & (1 << 2);
 			this.D = value & (1 << 3);
-			this.B = value & (1 << 4);
+			this.B = value & (1 << 4); // lets leave it not virtual for now
 			// nothing at bit 5
 			this.V = value & (1 << 6);
 			this.N = value & (1 << 7);
@@ -493,20 +528,46 @@ class CPU
 
 	// STACK POINTER IS SUPPOSED TO POINT TO THE FIRST FREE MEMORY
 
-	public void PushToStack(Byte b)
+	public void PushToStack(Byte b, bool consume = true)
 	{   // push and decrease sp
-		(*this.memory)[0x100 + this.SP] = this.A;
+		(*this.memory)[0x100 + this.SP] = b;
 		this.SP--;
-		this.cycles -= 2;
+		if(consume)
+			this.cycles -= 2;
 	}
-	public Byte PullFromStack()
+
+	public void PushToStack(Word w, bool consume = true)
+	{ // high-byte first, then low byte will be read first when pulling
+		(*this.memory)[0x100 + this.SP] = (Byte)(w >> 8); // high-byte
+		this.SP--;
+		(*this.memory)[0x100 + this.SP] = (Byte)(w); // low-byte
+		this.SP--;
+		if(consume)
+			this.cycles-=3;
+	}
+
+	public Byte PullFromStack(bool consume = true)
 	{
 		// increase sp and pull
 		this.SP++;
 		Byte r = (*this.memory)[0x100 + this.SP];
 		//(*this.memory)[0x100 + this.SP] = 0;
 		this.SetLoadFlags(r);
-		this.cycles -= 3;
+		if (consume)
+			this.cycles -= 3; // dead cycle
+		return r;
+	}
+
+	
+	public Word PullWordFromStack(bool consume = true)
+	{// firs pull low-byte
+		Word r = 0;
+		this.SP++;
+		r |= (*this.memory)[0x100 + this.SP];
+		this.SP++;
+		r |= (Word)(*this.memory)[0x100 + this.SP] << 8;
+		if (consume)
+			this.cycles -= 4;
 		return r;
 	}
 
@@ -517,10 +578,10 @@ class CPU
 			Console.WriteLine($"{i}: {(*this.memory)[i]}");
 	}
 	
-	public void PullFromStack(ref Byte dest)
+	public void PullFromStack(ref Byte dest, bool consume = true)
 	{
 		// increase sp and pull
-		dest = PullFromStack();
+		dest = PullFromStack(consume);
 	}
 
 	public void AddToAccumulator(LoadAdressingMode R, Byte addr)
@@ -848,7 +909,7 @@ class CPU
 		if(verbose)
 			Console.WriteLine($"starting at PC = {this.PC}");
 		//this.PC = resetVector; // may wanna call reset or something
-		while((*this.memory)[this.PC] != 0) // be better than that and add break
+		while(this.PC < 0xFFFF) // be better than that and add break
 		{
 			this.Tick(verbose);
 		}
@@ -857,8 +918,9 @@ class CPU
 	public void RunNextInstruction(bool verbose = false)
 	{
 		Byte instruction = this.FetchByte();
+		String instStr = AST.codes.GetKey(scope .(instruction)).Value.instruction;
 		if (verbose)
-			Console.WriteLine($"Running instruction {instruction}");
+			Console.WriteLine($"Running instruction {instStr}");
 		this.instructions[instruction](this);
 	}
 

@@ -47,9 +47,9 @@ enum Argument: IHashable
 	}
 }
 
-struct Instruction: IHashable
+public struct Instruction: IHashable
 {
-	String instruction;
+	public String instruction;
 	OpMode mode;
 	public this(String inst, OpMode mode)
 	{
@@ -96,6 +96,8 @@ class ASTNode
 		this.label = new .(label1); 
 		this.argument = .Label(new .(label2));
 	}
+
+	public static bool operator ==(ASTNode a, ASTNode b) => a.instruction == b.instruction;
 
 	public void Debug()
 	{
@@ -189,6 +191,15 @@ static class AST
 		(.("ORA", .ZeroPageIndirectX),new .(CPU.INS_ORA_INDX)),
 		(.("ORA", .ZeroPageInirectY),new .(CPU.INS_ORA_INDY)),
 
+		(.("INC", .ZeroPage), new .(CPU.INS_INC_ZP)),
+		(.("INC", .ZeroPageX), new .(CPU.INS_INC_ZPX)),
+		(.("INC", .Absolute), new .(CPU.INS_INC_ABS)),
+		(.("INC", .AbsoluteX), new .(CPU.INS_INC_ABSX)),
+
+		(.("INX", .Implied), new .(CPU.INS_INX)),
+		(.("INY", .Implied), new .(CPU.INS_INY)),
+
+
 		(.("DEC", .ZeroPage),new .(CPU.INS_DEC_ZP)),
 		(.("DEC", .ZeroPageX),new .(CPU.INS_DEC_ZPX)),
 		(.("DEC", .Absolute),new .(CPU.INS_DEC_ABS)),
@@ -243,6 +254,11 @@ static class AST
 		(.("PHP", .Implied), new .(CPU.INS_PHP)),
 		(.("PLA", .Implied), new .(CPU.INS_PLA)),
 		(.("PLP", .Implied), new .(CPU.INS_PLP)),
+
+		(.("BRK", .Implied), new .(CPU.INS_BRK)),
+		(.("RTI", .Implied), new .(CPU.INS_RTI)),
+
+
 
 	};
 
