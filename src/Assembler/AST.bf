@@ -7,6 +7,7 @@ enum OpMode
 	case Implied; // i
 	case Immediate; // #
 	case Absolute; // a
+	case Accumulator; // ,a
 	//case Label; // works like absolute may work if we leave it at absolute
 	case ZeroPage; // zp
 	case Relative;; // r
@@ -24,12 +25,33 @@ enum OpMode
 	}
 }
 
+enum LabelType
+{
+	Absolute, Relative
+}
+
+public struct Label: IHashable
+{
+	public String label;
+	public LabelType type;
+
+	public this(String l, LabelType t)
+	{
+		this.label = l;
+		this.type = t;
+	}
+
+
+	public int GetHashCode() => (Byte)this.type + this.label.GetHashCode();
+
+}
+
 enum Argument: IHashable
 {
 	case None;
 	case Byte(Byte b);
 	case Word(Word w);
-	case Label(String s);
+	case Label(Label l);
 
 	public int GetHashCode()
 	{
@@ -90,11 +112,11 @@ class ASTNode
 
 	}
 
-	public this(Byte i, String label1, String label2)
+	public this(Byte i, String label1, String label2, LabelType type)
 	{
 		this.instruction = i;
 		this.label = new .(label1); 
-		this.argument = .Label(new .(label2));
+		this.argument = .Label(.(new .(label2), type));
 	}
 
 	public static bool operator ==(ASTNode a, ASTNode b) => a.instruction == b.instruction;
@@ -110,7 +132,7 @@ class ASTNode
 	{
 		delete label;
 		if(this.argument case .Label(let s))
-			delete s;
+			delete s.label;
 	}
 }
 
@@ -243,10 +265,20 @@ static class AST
 		(.("ADC", .ZeroPageIndirectX),new .(CPU.INS_ADC_INDX)),
 		(.("ADC", .ZeroPageInirectY),new .(CPU.INS_ADC_INDY)),
 
+		(.("SBC", .Immediate), new .(CPU.INS_SBC_IM)),
+		(.("SBC", .ZeroPage), new .(CPU.INS_SBC_ZP)),
+		(.("SBC", .ZeroPageX), new .(CPU.INS_SBC_ZPX)),
+		(.("SBC", .Absolute), new .(CPU.INS_SBC_ABS)),
+		(.("SBC", .AbsoluteX), new .(CPU.INS_SBC_ABSX)),
+		(.("SBC", .AbsoluteY), new .(CPU.INS_SBC_ABSY)),
+		(.("SBC", .ZeroPageIndirectX), new .(CPU.INS_SBC_INDX)),
+		(.("SBC", .ZeroPageInirectY), new .(CPU.INS_SBC_INDY)),
+
 		(.("BIT", .ZeroPage),new .(CPU.INS_BIT_ZP)),
 		(.("BIT", .Absolute),new .(CPU.INS_BIT_ABS)),
 
 		(.("JMP", .Absolute), new .(CPU.INS_JMP_ABS)),
+		(.("JMP", .AbsoluteIndirect), new .(CPU.INS_JMP_IND)),
 
 		(.("NOP", .Implied), new .(CPU.INS_NOP)),
 
@@ -258,8 +290,34 @@ static class AST
 		(.("BRK", .Implied), new .(CPU.INS_BRK)),
 		(.("RTI", .Implied), new .(CPU.INS_RTI)),
 
+		(.("JSR", .Absolute), new .(CPU.INS_JSR)),
+		(.("RTS", .Implied), new .(CPU.INS_RTS)),
 
+		(.("BMI", .Relative), new .(CPU.INS_BMI)),
 
+		(.("ASL", .Accumulator), new .(CPU.INS_ASL_ACC)),
+		(.("ASL", .ZeroPage), new .(CPU.INS_ASL_ZP)),
+		(.("ASL", .ZeroPageX), new .(CPU.INS_ASL_ZPX)),
+		(.("ASL", .Absolute), new .(CPU.INS_ASL_ABS)),
+		(.("ASL", .AbsoluteX), new .(CPU.INS_ASL_ABSX)),
+
+		(.("LSR", .Accumulator), new .(CPU.INS_LSR_ACC)),
+        (.("LSR", .ZeroPage), new .(CPU.INS_LSR_ZP)),
+        (.("LSR", .ZeroPageX), new .(CPU.INS_LSR_ZPX)),
+        (.("LSR", .Absolute), new .(CPU.INS_LSR_ABS)),
+        (.("LSR", .AbsoluteX), new .(CPU.INS_LSR_ABSX)),
+
+        (.("ROL", .Accumulator), new .(CPU.INS_ROL_ACC)),
+        (.("ROL", .ZeroPage), new .(CPU.INS_ROL_ZP)),
+        (.("ROL", .ZeroPageX), new .(CPU.INS_ROL_ZPX)),
+        (.("ROL", .Absolute), new .(CPU.INS_ROL_ABS)),
+        (.("ROL", .AbsoluteX), new .(CPU.INS_ROL_ABSX)),
+
+        (.("ROR", .Accumulator), new .(CPU.INS_ROR_ACC)),
+        (.("ROR", .ZeroPage), new .(CPU.INS_ROR_ZP)),
+        (.("ROR", .ZeroPageX), new .(CPU.INS_ROR_ZPX)),
+        (.("ROR", .Absolute), new .(CPU.INS_ROR_ABS)),
+        (.("ROR", .AbsoluteX), new .(CPU.INS_ROR_ABSX)),
 	};
 
 	public static void Stop()

@@ -10,7 +10,7 @@ class Program
 	{
 		//Parser.ReadLines("test.asm");
 
-		Assembly a = scope .("asm/tests/brk_test.asm", true);
+		Assembly a = scope .("asm/tests/shifts/rol_test.asm", true);
 
 		//Console.WriteLine("assembly read");
 
@@ -29,5 +29,7 @@ class Program
 		//Console.WriteLine($"$0200: {mem[0x0200]}, $0201: {mem[0x0201]}, $0202: {mem[0x0202]}");
 		//Console.Write($"Status: {cpu.Status}");
 		Console.WriteLine($"A: {cpu.A} X: {cpu.X} Y: {cpu.Y}");
+		Console.WriteLine($"C: {cpu.C}, N: {cpu.N}");
+		Console.WriteLine($"mem: {cpu.memory.Get(0x2021)}");
 	}
 }

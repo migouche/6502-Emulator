@@ -8,6 +8,13 @@ namespace CPU_6502.Assembler;
 
 public static class Parser
 {
+	public static var relatives = new List<String>() {"BMI", "BPL"};
+
+	public static ~this()
+	{
+		delete relatives;
+	}
+
 	public static Result<(List<ASTNode>, (Word, String)), String> ReadLines(String path, bool verbose = false)
 	{
 		String text = scope .();
@@ -165,7 +172,7 @@ public static class Parser
 		}
 		else if (l.Count == 2)
 		{
-			var result = GetArgument(l[1], verbose);
+			var result = GetArgument(l[0], l[1], verbose);
 			switch(result)
 			{
 			case .Err(let err):
@@ -196,26 +203,30 @@ public static class Parser
 		}
 	}
 
-	public static Result<(Argument, OpMode), String> GetArgument(String s, bool verbose = false)
+	public static Result<(Argument, OpMode), String> GetArgument(String instName, String argName, bool verbose = false)
 	{
-		switch(s[0])
+		if(argName == "A" || argName == "a")
+		{
+			return .Ok((.None, .Accumulator));
+		}
+		switch(argName[0])
 		{
 		case '#': // should be immediate
-			s.Remove(0); // more checks please :)
-			if (s[0] != '$')
+			argName.Remove(0); // more checks please :)
+			if (argName[0] != '$')
 				return .Err("All numbers must begin with $, so they are hex");
-			s.Remove(0);
-			int n = Int32.Parse(s, System.Globalization.NumberStyles.HexNumber);
+			argName.Remove(0);
+			int n = Int32.Parse(argName, System.Globalization.NumberStyles.HexNumber);
 			if (n > 0xFF)
 				return .Err($"number must not be greater than 0xFF");
 			return .Ok((.Byte((Byte)n), .Immediate));
 		case '$': // direct memory addressing
-			s.Remove(0);
-			s.Replace(" ", "");
+			argName.Remove(0);
+			argName.Replace(" ", "");
 			List<String> l = scope .();
 			defer l.ClearAndDeleteItems();
 
-			for (var val in s.Split(','))
+			for (var val in argName.Split(','))
 				l.Add(new String(val));
 
 			var r_mem = Int32.Parse(l[0], System.Globalization.NumberStyles.HexNumber);
@@ -258,16 +269,16 @@ public static class Parser
 					return .Err("Instruction may only be indexed by x or y");
 			}
 		case '(':
-			if(!s.Contains(')'))
+			if(!argName.Contains(')'))
 				return .Err("Instruction must close parenthesis");
 
-			s.Replace(" ", "");
+			argName.Replace(" ", "");
 			List<String> l = scope .();
 			List<String> l2 = scope .();
 			defer l.ClearAndDeleteItems();
 			defer l2.ClearAndDeleteItems();
 
-			for (var val in s.Split("(", ")"))
+			for (var val in argName.Split("(", ")"))
 			{
 				if(val.Length > 0)
 					l.Add(new String(val));
@@ -334,8 +345,18 @@ public static class Parser
 			}
 		default: // should be a label
 			if (verbose)
-				Console.WriteLine($"returning label {s}");
-			return .Ok((.Label(new .(s)), .Absolute));
+				Console.WriteLine($"returning label {argName}");
+
+			if(relatives.Contains(instName))
+			{
+				if(verbose)
+					Console.Write($"{instName} in relative instructions");
+				return .Ok((.Label(.(new .(argName), .Relative)), .Relative));
+			}
+
+			Console.WriteLine($"{instName} not in relative instructions");
+
+			return .Ok((.Label(.(new .(argName), .Absolute)), .Absolute));
 			
 		}
 

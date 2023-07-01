@@ -5,6 +5,7 @@ namespace CPU_6502;
 
 typealias Byte = uint8;
 typealias Word = uint16;
+typealias SByte = int8;
 
 struct Bit: IFormattable
 {
@@ -126,6 +127,13 @@ class CPU
 		case M(Word addr, LoadAdressingMode l);
 	}
 
+	public enum ShiftAndRotations
+	{
+		case Accumulator;
+		case ZeroPage(bool x);
+		case Absolute(bool x);
+	}
+
 	public Word PC; // Program Counter
 	public Byte SP; // Stack Pointer // SHOULD BE BYTE // Starts at 0xFF and goes down when branching // its a byte and lets assume 0x01XX
 
@@ -142,6 +150,14 @@ class CPU
 
 	public bool exit;
 
+
+	const Byte
+		NegativeFlagBit = 0b10000000,
+		OverflowFlagBit = 0b01000000,
+		BreakFlagBit = 0b000010000,
+		UnusedFlagBit = 0b000100000,
+		InterruptDisableFlagBit = 0b000000100,
+		ZeroBit = 0b00000001;
 
 	// opcodes
 	public const Byte
@@ -223,6 +239,30 @@ class CPU
 		INS_ORA_INDX = 0x01, /// Logical OR Indirect X
 		INS_ORA_INDY = 0x11, /// Logical OR Indirect Y
 
+		INS_ASL_ACC = 0x0A,  /// Arithmetic Shift Left Accumulator
+		INS_ASL_ZP = 0x06,   /// Arithmetic Shift Left Zero Page
+		INS_ASL_ZPX = 0x16,  /// Arithmetic Shift Left Zero Page X
+		INS_ASL_ABS = 0x0E,  /// Arithmetic Shift Left Absolute
+		INS_ASL_ABSX = 0x1E, /// Arithmetic Shift Left Absolute X
+
+		INS_LSR_ACC = 0x4A,  /// Logical Shift Right Accumulator
+		INS_LSR_ZP = 0x46,   /// Logical Shift Right Zero Page
+		INS_LSR_ZPX = 0x56,  /// Logical Shift Right Zero Page X
+		INS_LSR_ABS = 0x4E,  /// Logical Shift Right Absolute
+		INS_LSR_ABSX = 0x5E, /// Logical Shift Right Absolute X
+
+		INS_ROL_ACC = 0x2A,  /// Rotate Left Accumulator
+		INS_ROL_ZP = 0x26,   /// Rotate Left Zero Page
+		INS_ROL_ZPX = 0x36,  /// Rotate Left Zero Page X
+		INS_ROL_ABS = 0x2E,  /// Rotate Left Absolute
+		INS_ROL_ABSX = 0x3E, /// Rotate Left Absolute X
+
+	 	INS_ROR_ACC = 0x6A,
+		INS_ROR_ZP = 0x66,
+		INS_ROR_ZPX = 0x76,
+		INS_ROR_ABS = 0x6E,
+		INS_ROR_ABSX = 0x7E,
+
 		INS_INC_ZP = 0xE6,   /// Increment Memory Zero Page
 		INS_INC_ZPX = 0xF6,  /// Increment Memory Zero Page X
 		INS_INC_ABS = 0xEE,  /// Increment Memory Absolute
@@ -270,6 +310,15 @@ class CPU
 		INS_ADC_INDX = 0x61, /// Add with Carry Indirect X
 		INS_ADC_INDY = 0x71, /// Add with Carry Indirect Y
 
+		INS_SBC_IM = 0xE9,   /// Subtract with Carry Immediate
+		INS_SBC_ZP = 0xE5,   /// Subtract with Carry Zero Page
+		INS_SBC_ZPX = 0xF5,  /// Subtract with Carry Zero Page X
+		INS_SBC_ABS = 0xED,  /// Subtract with Carry Absolute
+		INS_SBC_ABSX = 0xFD, /// Subtract with Carry Absolute X
+		INS_SBC_ABSY = 0XF9, /// Subtract with Carry Absolute Y
+		INS_SBC_INDX = 0xE1, /// Subtract with Carry Indirect X
+		INS_SBC_INDY = 0xF1, /// Subtract with Carry Indirect Y
+
 		INS_BIT_ZP = 0x24,   /// Bit Test Zero Page
 		INS_BIT_ABS = 0x2C,  /// Bit Test Zero Page
 
@@ -279,7 +328,20 @@ class CPU
 		INS_NOP = 0xEA,      /// No-op
 		INS_BRK = 0X00,      /// Break
 		INS_RTI = 0x40,      /// Return from Interrupt
-		INS_JSR = 0x20;      /// Jump to Subroutine
+
+		INS_JSR = 0x20,      /// Jump to Subroutine
+		INS_RTS = 0x60,      /// Return from Subroutine
+
+		INS_BMI = 0x30,      /// Branch if Minus
+		INS_BNE = 0xD0,      /// Branch if Negative
+		INS_BEQ = 0xF0,      /// Branch if Equal
+		INS_BPL = 0x10,      /// Branch if Positive
+		INS_BVC = 0x50,      /// Branch if Overflow Clear
+		INS_BVS = 0x70,      /// Branch if Overflow Set
+		INS_BCC = 0x90,		 /// Branch if Carry Clear
+		INS_BCS = 0xB0;      /// Branch if Carry Set
+
+
 
 	public function Result<void, String>(CPU c)[] instructions = new function Result<void, String>(CPU c)[0xFF];
 
@@ -364,6 +426,66 @@ class CPU
 		instructions[INS_ORA_INDX] = (c) => c.FetchByteToRegister(.A, .IndirectX, (a, m) => a | m);
 		instructions[INS_ORA_INDY] = (c) => c.FetchByteToRegister(.A, .IndirectY, (a, m) => a | m);
 
+		instructions[INS_ASL_ACC] = (c) => {
+			c.C = NegativeFlagBit & c.A != 0;
+			return c.Shift(.Accumulator, (b) => b << 1);
+		};
+		instructions[INS_ASL_ZP] = (c) => {
+			c.C = NegativeFlagBit & (*c.memory)[c.PeekByte()] != 0;
+			return c.Shift(.ZeroPage(false), (b) => b << 1);
+		};
+		instructions[INS_ASL_ZPX] = (c) => {
+			c.C = NegativeFlagBit & (*c.memory)[c.PeekByte() + c.X] != 0;
+			return c.Shift(.ZeroPage(true), (b) => b << 1);
+		};
+		instructions[INS_ASL_ABS] = (c) => {
+			c.C = NegativeFlagBit & (*c.memory)[c.PeekWord()] != 0;
+			return c.Shift(.Absolute(false), (b) => b << 1);
+		};
+		instructions[INS_ASL_ABSX] = (c) => {
+			c.C = NegativeFlagBit & (*c.memory)[c.PeekWord() + c.X] != 0;
+			return c.Shift(.Absolute(true), (b) => b << 1);
+		};
+
+		instructions[INS_LSR_ACC] = (c) =>
+		{
+		  	c.C = (c.A & 1) == 1;
+			return c.Shift(.Accumulator, (b) => b >> 1);
+		};
+		instructions[INS_LSR_ZP] = (c) =>
+		{
+			c.C = ((*c.memory)[c.PeekByte()] & 1) == 1;
+			return c.Shift(.ZeroPage(false), (b) => b >> 1);
+		};
+		instructions[INS_LSR_ZPX] = (c) =>
+		{
+			c.C = ((*c.memory)[c.PeekByte() + c.X] & 1) == 1;
+			return c.Shift(.ZeroPage(true), (b) => b >> 1);
+		};
+		instructions[INS_LSR_ABS] = (c) =>
+		{
+			c.C = ((*c.memory)[c.PeekWord()] & 1) == 1;
+			return c.Shift(.Absolute(false), (b) => b >> 1);
+		};
+		instructions[INS_LSR_ABSX] = (c) =>
+		{
+			c.C = ((*c.memory)[c.PeekWord() + c.X] & 1) == 1;
+			return c.Shift(.Absolute(true), (b) => b >> 1);
+		};
+
+		instructions[INS_ROL_ACC] = (c) =>
+		{
+			Bit oldC = c.C;
+			c.C = NegativeFlagBit & c.A != 0;
+			c.Shift(.Accumulator, (b) => b << 1);
+			c.A |= oldC;
+			return .Ok;
+		};
+		instructions[INS_ROL_ZP] = (c) =>
+ 		{
+
+		};
+
 		instructions[INS_INX] = (c) => c.WriteVal(.X, (r) => r + 1);
 		instructions[INS_INY] = (c) => c.WriteVal(.Y, (r) => r + 1);
 		instructions[INS_INC_ZP] = (c) => c.WriteVal(.ZeroPage(0), (r) => r + 1);
@@ -426,7 +548,22 @@ class CPU
 		instructions[INS_PLA] = (c) => c.PullFromStack(ref c.A);
 		instructions[INS_PLP] = (c) => (void)(c.Status =  c.PullFromStack());
 
-		instructions[INS_ADC_IM] = (c) => c.AddToAccumulator(.Immediate, c.FetchByte());
+		instructions[INS_ADC_IM] = (c) => c.AddToAccumulator(.Immediate, c.FetchByte()); // TODO check cycles for these ones
+		instructions[INS_ADC_ZP] = (c) => c.AddToAccumulator(.ZeroPage(0), c.FetchByte());
+		instructions[INS_ADC_ZPX] = (c) => c.AddToAccumulator(.ZeroPage(c.X), c.FetchByte());
+		instructions[INS_ADC_ABS] = (c) => c.AddToAccumulator(.Absolute(0), c.FetchWord());
+		instructions[INS_ADC_ABSX] = (c) => c.AddToAccumulator(.Absolute(c.X), c.FetchWord());
+		instructions[INS_ADC_INDX] = (c) => c.AddToAccumulator(.IndirectX, c.FetchByte());
+		instructions[INS_ADC_INDY] = (c) => c.AddToAccumulator(.IndirectY, c.FetchByte());
+
+		instructions[INS_SBC_IM] = (c) => c.SubtractToAccumulator(.Immediate, c.FetchByte()); // TODO: check cycles on these ones
+		instructions[INS_SBC_ZP] = (c) => c.SubtractToAccumulator(.ZeroPage(0), c.FetchByte());
+		instructions[INS_SBC_ZPX] = (c) => c.SubtractToAccumulator(.ZeroPage(c.X), c.FetchByte());
+		instructions[INS_SBC_ABS] = (c) => c.SubtractToAccumulator(.Absolute(0), c.FetchWord());
+		instructions[INS_SBC_ABSX] = (c) => c.SubtractToAccumulator(.Absolute(c.X), c.FetchWord());
+		instructions[INS_SBC_ABSY] = (c) => c.SubtractToAccumulator(.Absolute(c.Y), c.FetchWord());
+		instructions[INS_SBC_INDX] = (c) => c.SubtractToAccumulator(.IndirectX, c.FetchByte());
+		instructions[INS_SBC_INDY] = (c) => c.SubtractToAccumulator(.IndirectY, c.FetchByte());
 
 		instructions[INS_JMP_ABS] = (c) =>  {c.PC = c.FetchWord(); return (void)(c.cycles -= 2) /* cause we copying 2 bytes */;};
 		instructions[INS_JMP_IND] = (c) => (void)(c.PC = c.ReadWord(c.FetchWord())); // TODO fix cycles
@@ -435,7 +572,7 @@ class CPU
 
 		instructions[INS_BRK] = (c) =>
 		{ // gonna hard-code the cycles on this one cause ill die if not
-			c.PushToStack(c.PC + 1, false);
+			c.PushToStack(c.PC + 1, false); // pushing return address
 			Console.WriteLine($"BRK and pushed {c.PC + 1}");
 			c.B = 1;
 			c.PushToStack(c.Status);
@@ -443,7 +580,6 @@ class CPU
 			c.PC = c.memory.GetWord(CPU.interruptVector);
 			return (void)(c.cycles -= 6);
 		};
-
 		instructions[INS_RTI] = (c) =>
 		{
 			c.Status = c.PullFromStack(false);
@@ -452,6 +588,29 @@ class CPU
 			Console.WriteLine($"RTI and retrieving {c.PC}");
 			return (void)(c.cycles -= 5);
 		};
+
+		instructions[INS_JSR] = (c) =>
+		{
+			c.PushToStack(c.PC + 1); // gotta push return address - 1
+			Console.WriteLine($"JSR and pushed {c.PC + 1}");
+			return (void)(c.PC = c.FetchWord());
+		};
+		instructions[INS_RTS] = (c) =>
+		{
+			c.PC = c.PullWordFromStack() + 1;
+			Console.WriteLine($"RTS and pulled {c.PC}");
+			return (void)(c.cycles--);
+		};
+
+		instructions[INS_BMI] = (c) => c.BranchIf(c.N);
+		instructions[INS_BPL] = (c) => c.BranchIf(!c.N);
+		instructions[INS_BEQ] = (c) => c.BranchIf(c.Z);
+		instructions[INS_BNE] = (c) => c.BranchIf(!c.Z);
+		instructions[INS_BVS] = (c) => c.BranchIf(c.V);
+		instructions[INS_BVS] = (c) => c.BranchIf(!c.V);
+		instructions[INS_BCS] = (c) => c.BranchIf(c.C);
+		instructions[INS_BCC] = (c) => c.BranchIf(!c.C);
+		
 	}
 
 
@@ -525,6 +684,124 @@ class CPU
 		}
 	}
 
+	public void BranchIf(bool cond)
+	{
+		Console.WriteLine($"PC = {this.PC}");
+		if (!cond)
+		{
+			this.PC++;
+			Console.WriteLine("Not Branching");
+			this.cycles--;
+			return;
+		}
+
+		Word oldPc = this.PC;
+		SByte off = (SByte)this.FetchByte();
+		Console.WriteLine($"Got {off}");
+		this.cycles--;
+		if (off >= 0)
+			this.PC += (Byte)off; // might wanna check what kinda overflow and underflow we got
+		else
+			this.PC -= (Byte)off;
+		if(oldPc.HighByte != this.PC.HighByte)
+		{
+			Console.WriteLine("High Byte fix");
+			this.cycles--;
+		}
+		Console.WriteLine($"Branching, PC is now {this.PC}");
+	}
+
+	public void nShift(ShiftAndRotations s, bool right, bool rot)
+	{
+		Word add = 0;
+		Byte val;
+		if (s case .ZeroPage(let x))
+		{
+			add = this.FetchByte();
+			if (x)
+				add += this.X;
+		}
+		else if (s case .Absolute(let x))
+		{
+			add = this.FetchWord();
+ 			if (x)
+				add += this.X;
+		}
+		if(s case .Accumulator)
+			val = this.A;
+		else
+			val = (*this.memory)[add];
+
+		// adjust the C flag, but after calling op
+
+		Bit newC;
+		if(right)
+			newC = (val & 1) == 1;
+		else
+			newC = (val & NegativeFlagBit) != 0;
+
+		function Byte(Byte, bool, bool, Bit) op = (b, ri, ro, c) => {
+			if(ri)
+			{
+				if (ro)
+					return b >> 1 | c << 7;
+				else
+					return b >> 1;
+			}
+			else
+			{
+				if (ro)
+					return b << 1 | c;
+				else
+					return b << 1;
+			}
+
+		};
+
+		Byte newVal = op(val, right, rot, this.C);
+		this.C = newC;
+		this.SetLoadFlags(val);
+
+		if(s case .Accumulator)
+			this.A = newVal;
+		else
+			(*this.memory)[add] = val;
+	}
+
+
+	public void Shift(ShiftAndRotations s, function Byte(Byte) op)
+	{
+		switch (s)
+		{
+		case .Accumulator: this.A = op(A); this.SetLoadFlags(.A);
+		case .ZeroPage(let x):
+			if (x)
+			{
+				Byte addr = this.FetchByte() + this.X;
+				(*this.memory)[addr] = op((*this.memory)[addr]);
+				this.SetLoadFlags((*this.memory)[addr]);
+			}
+			else
+			{
+				Byte addr = this.FetchByte();
+				(*this.memory)[addr] = op((*this.memory)[addr]);
+				this.SetLoadFlags((*this.memory)[addr]);
+			}
+		case .Absolute(let x):
+			if (x)
+			{
+				Word addr = (Word)this.FetchWord() + this.X;
+				(*this.memory)[addr] = op((*this.memory)[addr]);
+				this.SetLoadFlags((*this.memory)[addr]);
+			}
+			else
+			{
+				Word addr = this.FetchWord();
+				(*this.memory)[addr] = op((*this.memory)[addr]);
+				this.SetLoadFlags((*this.memory)[addr]);
+			}
+		}
+	}
 
 	// STACK POINTER IS SUPPOSED TO POINT TO THE FIRST FREE MEMORY
 
@@ -584,20 +861,44 @@ class CPU
 		dest = PullFromStack(consume);
 	}
 
-	public void AddToAccumulator(LoadAdressingMode R, Byte addr)
+	public void AddToAccumulator(LoadAdressingMode R, Word addr)
 	{
-		AddToAccumulator(ReadByte(addr, R, true));
+		Byte val = ReadByte(addr, R, true);
+		AddToAccumulator(val);
 	}
 
 	/// this will add A to the val, and store it to A, will set all flags accordingly
 	public void AddToAccumulator(Byte val)
-	{
+	{/*
 		int sum = (int)this.A + (int)val + (Byte)this.C;
 		bool possibleOverflow = val >> 7 == this.A >> 7;
 		this.A = (Byte)sum;
 		this.SetLoadFlags(.A); // Z and N set
 		this.C = sum != this.A;
-		this.V = possibleOverflow && val >> 7 !=  this.A >> 7;
+		this.V = possibleOverflow && val >> 7 != this.A >> 7;*/
+		bool sameBits = ((this.A ^ val) & NegativeFlagBit) == 0;
+		Word sum = (Word)this.A + (Word)val + (Word)this.C;
+		this.A = (Byte)sum;
+		this.SetLoadFlags(.A);
+		this.C = sum > 0xFF;
+		this.V = sameBits && ((this.A ^ val) & NegativeFlagBit) != 0;
+	}
+
+	public void SubtractToAccumulator(Byte val)
+	{/*
+		int sub = (int)this.A - (int)val - (int)(1 - this.C);
+		bool possibleOverflow = val >> 7 != this.A >> 7;
+		this.A = (Byte)sub;
+		this.SetLoadFlags(.A);
+		this.V = possibleOverflow && val >> 7 == this.A >> 7;
+		if(this.V)
+			this.C = false; // "If overflow occurs the carry bit is clear, this enables multiple byte subtraction to be performed."*/
+		AddToAccumulator(~val);
+	}
+
+	public void SubtractToAccumulator(LoadAdressingMode R, Word addr)
+	{
+		SubtractToAccumulator(ReadByte(addr, R, true));
 	}
 
 	public Result<Byte> FetchByte() // will rework to work with ReadByte (or not xd)
@@ -612,6 +913,18 @@ class CPU
 		this.PC++;
 		cycles--;
 		return data;
+	}
+
+	public Byte PeekByte(Word index = 0)
+	{
+		return (*this.memory)[PC + index];
+	}
+
+	public Word PeekWord(Word index = 0)
+	{
+		Byte lByte = PeekByte(index);
+		Byte hByte = PeekByte(index + 1);
+		return lByte + ((Word)hByte << 8);
 	}
 
 	public Word ReadWord(Word address, Byte index = 0)

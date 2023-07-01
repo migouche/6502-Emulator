@@ -37,6 +37,7 @@ class Assembly
 		if(verbose)
 		{
 			Console.WriteLine("\n\nAssembling\n");
+
 			Console.WriteLine($".brk label: {this.interruptLabel}");
 		}
 		Byte[64 * 1024] r = .();
@@ -65,11 +66,15 @@ class Assembly
 				r[i] = b;
 			case .Word(let w):
 				i++;
-				r[i] = (Byte)w;
+				r[i] = w.LowByte;
 				i++;
-				r[i] = (Byte)(w >> 8);
-			case .Label:
-				i+=2;
+				r[i] = w.HighByte;
+			case .Label(let s):
+				if(s.type == .Absolute)
+					i+=2;
+				else
+					i++;
+				
 			case .None:
 				if (inst.instruction == CPU.INS_BRK)
 					i++; // padding byte
@@ -88,11 +93,22 @@ class Assembly
 			case .Word: i+=2;
 			case .None:
 			case .Label(let s):
-				Word r2 = labels.GetValue(s);
-				i++;
-				r[i] = (Byte)r2;
-				i++;
-				r[i] = (Byte)(r2 >> 8);
+				Word r2 = labels.GetValue(s.label);
+				if (s.type == .Absolute)
+				{
+					i++;
+					r[i] = r2.LowByte;
+					i++;
+					r[i] = r2.HighByte;
+				}
+
+				else if(s.type == .Relative)
+				{
+					
+					SByte offset = SByte(r2 - i) - 2; // - 2 cause i is address  of bmi, it hasn't gone to after the argument + we go to return - 1
+					i++;
+					r[i] = (Byte)offset;
+				}
 
 			}
 			delete inst;
@@ -103,8 +119,8 @@ class Assembly
 		{
 			if(verbose)
 				Console.WriteLine($"interrupt address: {ad}");
-			r[CPU.interruptVector] = (Byte)ad;
-			r[CPU.interruptVector + 1] = (Byte)(ad >> 8);
+			r[CPU.interruptVector] = ad.LowByte;
+			r[CPU.interruptVector + 1] = ad.HighByte;
 		}
 		else
 			if (verbose)

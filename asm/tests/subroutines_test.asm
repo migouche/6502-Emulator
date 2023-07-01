@@ -1,11 +1,10 @@
 .org $4000
-.brk break
 
 LDY #$03
-BRK
+JSR goto
 LDA #$01
 JMP $FFFF
 
 
-break: LDX #$02
-RTI
+goto: LDX #$02
+RTS

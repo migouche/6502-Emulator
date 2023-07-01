@@ -1,0 +1,7 @@
+.org $4000
+
+LDA #$AB
+LDX #$1
+STA $2020,X
+LSR $2020,X
+JMP $FFFF
