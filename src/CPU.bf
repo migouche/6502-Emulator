@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using CPU_6502.Assembler;
 
 namespace CPU_6502;
@@ -87,6 +88,48 @@ struct Memory
 	public void HardLoadProgram(Byte[MAX_MEM] m) mut
 	{
 		this.data = m;
+	}
+
+	public Result<void, String> HardLoadProgram(String path) mut
+	{
+		if(!File.Exists(path))
+		{
+			return .Err("File not found");
+		}
+
+		var code = File.ReadAll(path, ..scope .());
+		Word i = 0;
+		for (var b in code)
+		{
+			this[i] = b;
+			i++;
+		}
+		return .Ok;
+	}
+
+	public static Result<void, String> DisassembleToHex(String input, String output, int instructionsPerLine = 10)
+	{
+		if(!File.Exists(input))
+		{
+			return .Err("File not found");
+		}
+
+		BufferedFileStream f = scope .();
+		var r = f.Create(output);
+		if (r case .Err(let err))
+			return .Err(err.ToString(..scope .()));
+		var code = File.ReadAll(input, ..scope .());
+		int i = 0;
+		for(var b in code)
+		{
+
+			f.Write(scope $"{b:X2} ");
+			if (i % instructionsPerLine == 0)
+				f.Write('\n');
+			i++;
+		}
+		f.Close();
+		return .Ok;
 	}
 }
 
@@ -350,7 +393,10 @@ class CPU
 	{
 		for (int i < 0xFF)
 		{
-			instructions[i] =  (_) => .Err("Unknown Instruction");
+			instructions[i] =  (c) =>{
+				Console.WriteLine(scope $"instruction {(*c.memory)[c.PC]} not found");
+				return .Err(scope $"instruction {(*c.memory)[c.PC]} not found");
+			};
 		}
 
 
@@ -426,66 +472,30 @@ class CPU
 		instructions[INS_ORA_INDX] = (c) => c.FetchByteToRegister(.A, .IndirectX, (a, m) => a | m);
 		instructions[INS_ORA_INDY] = (c) => c.FetchByteToRegister(.A, .IndirectY, (a, m) => a | m);
 
-		instructions[INS_ASL_ACC] = (c) => {
-			c.C = NegativeFlagBit & c.A != 0;
-			return c.Shift(.Accumulator, (b) => b << 1);
-		};
-		instructions[INS_ASL_ZP] = (c) => {
-			c.C = NegativeFlagBit & (*c.memory)[c.PeekByte()] != 0;
-			return c.Shift(.ZeroPage(false), (b) => b << 1);
-		};
-		instructions[INS_ASL_ZPX] = (c) => {
-			c.C = NegativeFlagBit & (*c.memory)[c.PeekByte() + c.X] != 0;
-			return c.Shift(.ZeroPage(true), (b) => b << 1);
-		};
-		instructions[INS_ASL_ABS] = (c) => {
-			c.C = NegativeFlagBit & (*c.memory)[c.PeekWord()] != 0;
-			return c.Shift(.Absolute(false), (b) => b << 1);
-		};
-		instructions[INS_ASL_ABSX] = (c) => {
-			c.C = NegativeFlagBit & (*c.memory)[c.PeekWord() + c.X] != 0;
-			return c.Shift(.Absolute(true), (b) => b << 1);
-		};
+		instructions[INS_ASL_ACC]  = (c) => c.Shift(.Accumulator,     false, false);
+		instructions[INS_ASL_ZP]   = (c) => c.Shift(.ZeroPage(false), false, false);
+		instructions[INS_ASL_ZPX]  = (c) => c.Shift(.ZeroPage(true),  false, false);
+		instructions[INS_ASL_ABS]  = (c) => c.Shift(.Absolute(false), false, false);
+		instructions[INS_ASL_ABSX] = (c) => c.Shift(.Absolute(true),  false, false);
 
-		instructions[INS_LSR_ACC] = (c) =>
-		{
-		  	c.C = (c.A & 1) == 1;
-			return c.Shift(.Accumulator, (b) => b >> 1);
-		};
-		instructions[INS_LSR_ZP] = (c) =>
-		{
-			c.C = ((*c.memory)[c.PeekByte()] & 1) == 1;
-			return c.Shift(.ZeroPage(false), (b) => b >> 1);
-		};
-		instructions[INS_LSR_ZPX] = (c) =>
-		{
-			c.C = ((*c.memory)[c.PeekByte() + c.X] & 1) == 1;
-			return c.Shift(.ZeroPage(true), (b) => b >> 1);
-		};
-		instructions[INS_LSR_ABS] = (c) =>
-		{
-			c.C = ((*c.memory)[c.PeekWord()] & 1) == 1;
-			return c.Shift(.Absolute(false), (b) => b >> 1);
-		};
-		instructions[INS_LSR_ABSX] = (c) =>
-		{
-			c.C = ((*c.memory)[c.PeekWord() + c.X] & 1) == 1;
-			return c.Shift(.Absolute(true), (b) => b >> 1);
-		};
+		instructions[INS_LSR_ACC]  = (c) => c.Shift(.Accumulator,     true, false);
+		instructions[INS_LSR_ZP]   = (c) => c.Shift(.ZeroPage(false), true, false);
+		instructions[INS_LSR_ZPX]  = (c) => c.Shift(.ZeroPage(true),  true, false);
+		instructions[INS_LSR_ABS]  = (c) => c.Shift(.Absolute(false), true, false);
+		instructions[INS_LSR_ABSX] = (c) => c.Shift(.Absolute(true),  true, false);
 
-		instructions[INS_ROL_ACC] = (c) =>
-		{
-			Bit oldC = c.C;
-			c.C = NegativeFlagBit & c.A != 0;
-			c.Shift(.Accumulator, (b) => b << 1);
-			c.A |= oldC;
-			return .Ok;
-		};
-		instructions[INS_ROL_ZP] = (c) =>
- 		{
+		instructions[INS_ROL_ACC] =  (c) => c.Shift(.Accumulator,     false, true);
+		instructions[INS_ROL_ZP] =   (c) => c.Shift(.ZeroPage(false), false, true);
+		instructions[INS_ROL_ZPX] =  (c) => c.Shift(.ZeroPage(true),  false, true);
+		instructions[INS_ROL_ABS] =  (c) => c.Shift(.Absolute(false), false, true);
+		instructions[INS_ROL_ABSX] = (c) => c.Shift(.Absolute(true),  false, true);
 
-		};
-
+		instructions[INS_ROR_ACC]  = (c) => c.Shift(.Accumulator,     true, true);
+		instructions[INS_ROR_ZP]   = (c) => c.Shift(.ZeroPage(false), true, true);
+		instructions[INS_ROR_ZPX]  = (c) => c.Shift(.ZeroPage(true),  true, true);
+		instructions[INS_ROR_ABS]  = (c) => c.Shift(.Absolute(false), true, true);
+		instructions[INS_ROR_ABSX] = (c) => c.Shift(.Absolute(true),  true, true);
+ 
 		instructions[INS_INX] = (c) => c.WriteVal(.X, (r) => r + 1);
 		instructions[INS_INY] = (c) => c.WriteVal(.Y, (r) => r + 1);
 		instructions[INS_INC_ZP] = (c) => c.WriteVal(.ZeroPage(0), (r) => r + 1);
@@ -607,7 +617,7 @@ class CPU
 		instructions[INS_BEQ] = (c) => c.BranchIf(c.Z);
 		instructions[INS_BNE] = (c) => c.BranchIf(!c.Z);
 		instructions[INS_BVS] = (c) => c.BranchIf(c.V);
-		instructions[INS_BVS] = (c) => c.BranchIf(!c.V);
+		instructions[INS_BVC] = (c) => c.BranchIf(!c.V);
 		instructions[INS_BCS] = (c) => c.BranchIf(c.C);
 		instructions[INS_BCC] = (c) => c.BranchIf(!c.C);
 		
@@ -626,6 +636,11 @@ class CPU
 		delete this.instructions;
 	}
 
+	public void Reset(Word PCStart)
+	{
+		this.Reset();
+		this.PC = PCStart; // not very beautiful but will do
+	}
 
 
 	public void Reset() // should take 7 bytes
@@ -711,8 +726,8 @@ class CPU
 		Console.WriteLine($"Branching, PC is now {this.PC}");
 	}
 
-	public void nShift(ShiftAndRotations s, bool right, bool rot)
-	{
+	public void Shift(ShiftAndRotations s, bool right, bool rot)
+	{ // TODO: FIX CYCLES
 		Word add = 0;
 		Byte val;
 		if (s case .ZeroPage(let x))
@@ -724,22 +739,23 @@ class CPU
 		else if (s case .Absolute(let x))
 		{
 			add = this.FetchWord();
- 			if (x)
+				if (x)
 				add += this.X;
 		}
+
 		if(s case .Accumulator)
 			val = this.A;
 		else
 			val = (*this.memory)[add];
-
+	
 		// adjust the C flag, but after calling op
-
+	
 		Bit newC;
 		if(right)
 			newC = (val & 1) == 1;
 		else
 			newC = (val & NegativeFlagBit) != 0;
-
+	
 		function Byte(Byte, bool, bool, Bit) op = (b, ri, ro, c) => {
 			if(ri)
 			{
@@ -747,6 +763,7 @@ class CPU
 					return b >> 1 | c << 7;
 				else
 					return b >> 1;
+				
 			}
 			else
 			{
@@ -755,52 +772,17 @@ class CPU
 				else
 					return b << 1;
 			}
-
+	
 		};
-
+	
 		Byte newVal = op(val, right, rot, this.C);
 		this.C = newC;
-		this.SetLoadFlags(val);
-
+		this.SetLoadFlags(newVal);
+	
 		if(s case .Accumulator)
 			this.A = newVal;
 		else
-			(*this.memory)[add] = val;
-	}
-
-
-	public void Shift(ShiftAndRotations s, function Byte(Byte) op)
-	{
-		switch (s)
-		{
-		case .Accumulator: this.A = op(A); this.SetLoadFlags(.A);
-		case .ZeroPage(let x):
-			if (x)
-			{
-				Byte addr = this.FetchByte() + this.X;
-				(*this.memory)[addr] = op((*this.memory)[addr]);
-				this.SetLoadFlags((*this.memory)[addr]);
-			}
-			else
-			{
-				Byte addr = this.FetchByte();
-				(*this.memory)[addr] = op((*this.memory)[addr]);
-				this.SetLoadFlags((*this.memory)[addr]);
-			}
-		case .Absolute(let x):
-			if (x)
-			{
-				Word addr = (Word)this.FetchWord() + this.X;
-				(*this.memory)[addr] = op((*this.memory)[addr]);
-				this.SetLoadFlags((*this.memory)[addr]);
-			}
-			else
-			{
-				Word addr = this.FetchWord();
-				(*this.memory)[addr] = op((*this.memory)[addr]);
-				this.SetLoadFlags((*this.memory)[addr]);
-			}
-		}
+			(*this.memory)[add] = newVal;
 	}
 
 	// STACK POINTER IS SUPPOSED TO POINT TO THE FIRST FREE MEMORY
@@ -1217,8 +1199,9 @@ class CPU
 		return startCycles - this.cycles;
 	}
 
-	public void Run(bool verbose = false)
+	public void Run(Word PCStart = resetVector, bool verbose = false)
 	{
+		this.Reset(PCStart);
 		if(verbose)
 			Console.WriteLine($"starting at PC = {this.PC}");
 		//this.PC = resetVector; // may wanna call reset or something
@@ -1231,7 +1214,11 @@ class CPU
 	public void RunNextInstruction(bool verbose = false)
 	{
 		Byte instruction = this.FetchByte();
+		var r = AST.codes.GetKey(scope .(instruction));
+		if(r case .Err)
+			Console.WriteLine($"did not find instruction {instruction}");
 		String instStr = AST.codes.GetKey(scope .(instruction)).Value.instruction;
+
 		if (verbose)
 			Console.WriteLine($"Running instruction {instStr}");
 		this.instructions[instruction](this);

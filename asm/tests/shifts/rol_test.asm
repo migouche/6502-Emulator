@@ -2,5 +2,5 @@
 
 SEC
 LDA #$81
-ROL AA
+ROL A
 JMP $FFFF

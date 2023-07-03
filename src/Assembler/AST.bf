@@ -294,6 +294,13 @@ static class AST
 		(.("RTS", .Implied), new .(CPU.INS_RTS)),
 
 		(.("BMI", .Relative), new .(CPU.INS_BMI)),
+		(.("BPL", .Relative), new .(CPU.INS_BPL)),
+		(.("BEQ", .Relative), new .(CPU.INS_BEQ)),
+		(.("BNE", .Relative), new .(CPU.INS_BNE)),
+		(.("BVS", .Relative), new .(CPU.INS_BVS)),
+		(.("BVC", .Relative), new .(CPU.INS_BVC)),
+		(.("BCS", .Relative), new .(CPU.INS_BCS)),
+		(.("BCC", .Relative), new .(CPU.INS_BCC)),
 
 		(.("ASL", .Accumulator), new .(CPU.INS_ASL_ACC)),
 		(.("ASL", .ZeroPage), new .(CPU.INS_ASL_ZP)),

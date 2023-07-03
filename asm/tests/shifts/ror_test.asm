@@ -1,0 +1,6 @@
+.ORG 4000
+
+SEC
+LDA #$81
+ROR A
+JMP $FFFF
