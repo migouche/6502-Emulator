@@ -1,6 +1,0 @@
-.org 4000
-
-SEC
-LDA #$81
-ROL A
-JMP $FFFF
