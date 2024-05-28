@@ -37,6 +37,9 @@ class Program
 
 
 		Memory mem = Memory();
+		CPU cpu = scope CPU(&mem);
+
+		Console.WriteLine("breakpoint");
 
 		//mem.HardLoadProgram(a.Export(true));
 		HardLoadProgram!(&mem, "asm/6502_65C02_functional_tests/bin_files/6502_functional_test.bin");
@@ -45,16 +48,19 @@ class Program
 
 
 		//Console.WriteLine("memory copied");
-		CPU cpu = scope CPU(&mem);
+
 		//Console.WriteLine("cpu created");
-		cpu.Run(0x400, true);
+		cpu.Run(0x400, false, true);
+		//cpu.LoadSavestate("save.cpu", true);
 		//Console.WriteLine(mem.Get(0));
 
 		//Console.WriteLine($"A: {cpu.A}");
 		//Console.WriteLine($"$0200: {mem[0x0200]}, $0201: {mem[0x0201]}, $0202: {mem[0x0202]}");
 		//Console.Write($"Status: {cpu.Status}");
 		Console.WriteLine($"A: {cpu.A} X: {cpu.X} Y: {cpu.Y}");
-		Console.WriteLine($"C: {cpu.C}, N: {cpu.N}");
+		Console.WriteLine($"N: {cpu.N}, V: {cpu.V}, 1: 1, B: {cpu.B}, D: {cpu.D}, I: {cpu.I}, Z: {cpu.Z}, C: {cpu.C}");
+		Console.WriteLine($"ad1 (0x000d): {mem[0x000d]}, sb2 (0x0012): {mem[0x0012]}, adrl (0x0000): {mem[0x0000]}");
 		Console.WriteLine($"$2021: {cpu.memory.Get(0x2021)}");
+		Console.ReadLine(.. scope .());
 	}
 }

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using CPU_6502.Assembler;
+using CPU_6502.Utils;
 
 namespace CPU_6502;
 
@@ -177,6 +178,10 @@ class CPU
 		case Absolute(bool x);
 	}
 
+	private Word LastJump;
+
+	bool verbose;
+
 	public Word PC; // Program Counter
 	public Byte SP; // Stack Pointer // SHOULD BE BYTE // Starts at 0xFF and goes down when branching // its a byte and lets assume 0x01XX
 
@@ -188,6 +193,7 @@ class CPU
 
 	public Memory* memory;
 	public int cycles;
+	public uint64 totalCycles;
 
 	public const Word resetVector = 0xFFFC, interruptVector = 0xFFFE;
 
@@ -201,6 +207,8 @@ class CPU
 		UnusedFlagBit = 0b000100000,
 		InterruptDisableFlagBit = 0b000000100,
 		ZeroBit = 0b00000001;
+
+	private bool testmode;
 
 	// opcodes
 	public const Byte
@@ -391,6 +399,7 @@ class CPU
 
 	public this
 	{
+		this.totalCycles = 0;
 		for (int i < 0xFF)
 		{
 			instructions[i] =  (c) =>{
@@ -438,12 +447,12 @@ class CPU
 		instructions[INS_STY_ZPX] = (c) => c.StoreRegisterToMemory(.Y, .ZeroPage(c.X));
 		instructions[INS_STY_ABS] = (c) => c.StoreRegisterToMemory(.Y, .Absolute(0));
 
-		instructions[INS_TAX] = (c) => { c.X = c.A; c.cycles--; return c.SetLoadFlags(.X); };
-		instructions[INS_TXA] = (c) => { c.A = c.X; c.cycles--; return c.SetLoadFlags(.A); };
-		instructions[INS_TAY] = (c) => { c.Y = c.A; c.cycles--; return c.SetLoadFlags(.Y); };
-		instructions[INS_TYA] = (c) => { c.A = c.Y; c.cycles--; return c.SetLoadFlags(.A); };
-		instructions[INS_TXS] = (c) => { c.SP = c.X; c.cycles--; return (void)0; };
-		instructions[INS_TSX] = (c) => { c.X = c.SP; c.cycles--; return c.SetLoadFlags(.X); };
+		instructions[INS_TAX] = (c) => { if (c.verbose) Console.WriteLine($"Transferring {c.A} to X"); c.X = c.A; c.cycles--; return c.SetLoadFlags(.X); };
+		instructions[INS_TXA] = (c) => { if(c.verbose) Console.WriteLine($"Transferring {c.X} to A"); c.A = c.X; c.cycles--; return c.SetLoadFlags(.A); };
+		instructions[INS_TAY] = (c) => { if(c.verbose) Console.WriteLine($"Transferring {c.A} to Y"); c.Y = c.A; c.cycles--; return c.SetLoadFlags(.Y); };
+		instructions[INS_TYA] = (c) => { if(c.verbose) Console.WriteLine($"Transferring {c.Y} to A"); c.A = c.Y; c.cycles--; return c.SetLoadFlags(.A); };
+		instructions[INS_TXS] = (c) => { if(c.verbose) Console.WriteLine($"Transferring {c.X} to SP"); c.SP = c.X; c.cycles--; return (void)0; };
+		instructions[INS_TSX] = (c) => { if(c.verbose) Console.WriteLine($"Transferring {c.SP} to X"); c.X = c.SP; c.cycles--; return c.SetLoadFlags(.X); };
 
 		instructions[INS_AND_IM] = (c) => c.FetchByteToRegister(.A, .Immediate, (a, m) => a & m);
 		instructions[INS_AND_ZP] = (c) => c.FetchByteToRegister(.A, .ZeroPage(0), (a, m) => a & m);
@@ -535,8 +544,8 @@ class CPU
 		instructions[INS_CMP_ABS] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .Absolute(0)));
 		instructions[INS_CMP_ABSX] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .Absolute(c.X)));
 		instructions[INS_CMP_ABSY] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .Absolute(c.Y)));
-		instructions[INS_CMP_INDX] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .IndirectX));
-		instructions[INS_CMP_INDY] = (c) => c.CompareVals(.A, .M(c.FetchWord(), .IndirectY));
+		instructions[INS_CMP_INDX] = (c) => c.CompareVals(.A, .M(c.FetchByte(), .IndirectX));
+		instructions[INS_CMP_INDY] = (c) => c.CompareVals(.A, .M(c.FetchByte(), .IndirectY));
 
 		instructions[INS_CPX_IM] = (c) => c.CompareVals(.X, .M(c.FetchByte(), .Immediate));
 		instructions[INS_CPX_ZP] = (c) => c.CompareVals(.X, .M(c.FetchByte(), .ZeroPage(0)));
@@ -554,7 +563,7 @@ class CPU
 		instructions[INS_CLV] = (c) => c.SetFlag(ref c.V, 0);
 
 		instructions[INS_PHA] = (c) =>  c.PushToStack(c.A);
-		instructions[INS_PHP] = (c) => c.PushToStack(c.Status);
+		instructions[INS_PHP] = (c) => {c.B = 1; return c.PushToStack(c.Status);};
 		instructions[INS_PLA] = (c) => c.PullFromStack(ref c.A);
 		instructions[INS_PLP] = (c) => (void)(c.Status =  c.PullFromStack());
 
@@ -563,6 +572,7 @@ class CPU
 		instructions[INS_ADC_ZPX] = (c) => c.AddToAccumulator(.ZeroPage(c.X), c.FetchByte());
 		instructions[INS_ADC_ABS] = (c) => c.AddToAccumulator(.Absolute(0), c.FetchWord());
 		instructions[INS_ADC_ABSX] = (c) => c.AddToAccumulator(.Absolute(c.X), c.FetchWord());
+		instructions[INS_ADC_ABSY] = (c) => c.AddToAccumulator(.Absolute(c.Y), c.FetchWord());
 		instructions[INS_ADC_INDX] = (c) => c.AddToAccumulator(.IndirectX, c.FetchByte());
 		instructions[INS_ADC_INDY] = (c) => c.AddToAccumulator(.IndirectY, c.FetchByte());
 
@@ -575,18 +585,37 @@ class CPU
 		instructions[INS_SBC_INDX] = (c) => c.SubtractToAccumulator(.IndirectX, c.FetchByte());
 		instructions[INS_SBC_INDY] = (c) => c.SubtractToAccumulator(.IndirectY, c.FetchByte());
 
-		instructions[INS_JMP_ABS] = (c) =>  {c.PC = c.FetchWord(); return (void)(c.cycles -= 2) /* cause we copying 2 bytes */;};
-		instructions[INS_JMP_IND] = (c) => (void)(c.PC = c.ReadWord(c.FetchWord())); // TODO fix cycles
+		instructions[INS_JMP_ABS] = (c) =>  {
+			c.PC = c.FetchWord();
+			if(c.verbose)
+				Console.WriteLine($"JMP: PC = {c.PC}");
+			if(c.PC == c.LastJump)
+				c.exit = true;
+			c.LastJump = c.PC;
+			return (void)(c.cycles -= 2) /* cause we copying 2 bytes */;
+		};
+
+		instructions[INS_JMP_IND] = (c) => {
+			if(c.verbose)
+				Console.WriteLine($"JMP: PC = {c.PC}");
+			if(c.PC == c.LastJump)
+				c.exit = true;
+			c.LastJump = c.PC;
+			c.PC = c.ReadWord(c.FetchWord());
+			return .Ok;
+		}; // TODO fix cycles
 
 		instructions[INS_NOP] = (c) => (void)c.cycles--;
 
 		instructions[INS_BRK] = (c) =>
 		{ // gonna hard-code the cycles on this one cause ill die if not
+			
 			c.PushToStack(c.PC + 1, false); // pushing return address
-			Console.WriteLine($"BRK and pushed {c.PC + 1}");
+			if(c.verbose)
+				Console.WriteLine($"BRK and pushed {c.PC + 1}");
 			c.B = 1;
 			c.PushToStack(c.Status);
-			c.B = 0;
+			c.I = 1;
 			c.PC = c.memory.GetWord(CPU.interruptVector);
 			return (void)(c.cycles -= 6);
 		};
@@ -595,20 +624,23 @@ class CPU
 			c.Status = c.PullFromStack(false);
 			c.B = 0;
 			c.PC = c.PullWordFromStack(false);
-			Console.WriteLine($"RTI and retrieving {c.PC}");
+			if(c.verbose)
+				Console.WriteLine($"RTI and retrieving {c.PC}");
 			return (void)(c.cycles -= 5);
 		};
 
 		instructions[INS_JSR] = (c) =>
 		{
 			c.PushToStack(c.PC + 1); // gotta push return address - 1
-			Console.WriteLine($"JSR and pushed {c.PC + 1}");
+			if(c.verbose)
+				Console.WriteLine($"JSR and pushed {c.PC + 1}");
 			return (void)(c.PC = c.FetchWord());
 		};
 		instructions[INS_RTS] = (c) =>
 		{
 			c.PC = c.PullWordFromStack() + 1;
-			Console.WriteLine($"RTS and pulled {c.PC}");
+			if(c.verbose)
+				Console.WriteLine($"RTS and pulled {c.PC}");
 			return (void)(c.cycles--);
 		};
 
@@ -652,8 +684,9 @@ class CPU
 		//PC = memory.Get(0xfffc);
 		//Console.WriteLine("after pc");
 		SP = (Byte)0xFF; // I'm supposing for now that SP = 0x01SP
-		C = Z = I = D = B = V = N = 0;
+		C = Z = I = D = V = N = 0;
 		A = X = Y = 0;
+		B = 1;
 
 		cycles -= 5; // do better that this :)
 	}
@@ -681,6 +714,7 @@ class CPU
 			r |= this.D << 3;
 			r |= this.B << 4; // careful with this one
 			r |= 1 << 5;
+			
 			r |= this.V << 6;
 			r |= this.N << 7;
 			return r;
@@ -701,29 +735,44 @@ class CPU
 
 	public void BranchIf(bool cond)
 	{
-		Console.WriteLine($"PC = {this.PC}");
+		if(verbose)
+			Console.WriteLine($"PC = {this.PC} (0x{this.PC:X4})");
 		if (!cond)
 		{
 			this.PC++;
-			Console.WriteLine("Not Branching");
+			if(verbose)
+				Console.WriteLine("Not Branching");
 			this.cycles--;
 			return;
 		}
 
 		Word oldPc = this.PC;
 		SByte off = (SByte)this.FetchByte();
-		Console.WriteLine($"Got {off}");
+
 		this.cycles--;
 		if (off >= 0)
 			this.PC += (Byte)off; // might wanna check what kinda overflow and underflow we got
 		else
-			this.PC -= (Byte)off;
+			this.PC -= (Byte)~off + 1;
+		if(this.PC == LastJump)
+			this.exit = true;
+		this.exit = false;
+		if(verbose)
+			Console.WriteLine($"Got {off}");
+		if(off == -2)
+		{
+			Console.WriteLine($"infinite loop at PC = {this.PC:X4} (may want to subtract 1 or 2 xd)");
+			exit = true;
+		}
+		this.LastJump = this.PC;
 		if(oldPc.HighByte != this.PC.HighByte)
 		{
-			Console.WriteLine("High Byte fix");
+			if(verbose)
+				Console.WriteLine("High Byte fix");
 			this.cycles--;
 		}
-		Console.WriteLine($"Branching, PC is now {this.PC}");
+		if(verbose)
+			Console.WriteLine($"Branching, PC is now {this.PC} (0x{this.PC:X4})");
 	}
 
 	public void Shift(ShiftAndRotations s, bool right, bool rot)
@@ -789,6 +838,8 @@ class CPU
 
 	public void PushToStack(Byte b, bool consume = true)
 	{   // push and decrease sp
+		if(verbose)
+			Console.WriteLine($"Pushed {b} ({Convert.ToBinary(b, ..scope .())}) to stack");
 		(*this.memory)[0x100 + this.SP] = b;
 		this.SP--;
 		if(consume)
@@ -814,6 +865,9 @@ class CPU
 		this.SetLoadFlags(r);
 		if (consume)
 			this.cycles -= 3; // dead cycle
+
+		if(verbose)
+			Console.WriteLine($"Pulled {r} (0b{Convert.ToBinary(r, ..scope .())}) from stack");
 		return r;
 	}
 
@@ -858,12 +912,37 @@ class CPU
 		this.SetLoadFlags(.A); // Z and N set
 		this.C = sum != this.A;
 		this.V = possibleOverflow && val >> 7 != this.A >> 7;*/
-		bool sameBits = ((this.A ^ val) & NegativeFlagBit) == 0;
-		Word sum = (Word)this.A + (Word)val + (Word)this.C;
-		this.A = (Byte)sum;
-		this.SetLoadFlags(.A);
-		this.C = sum > 0xFF;
-		this.V = sameBits && ((this.A ^ val) & NegativeFlagBit) != 0;
+		if(this.D && this.testmode)
+		{
+			Word lowNibble = (this.A & 0x0F) + (val & 0x0F) + (Byte)this.C;
+			Word highNibble = (this.A >> 4) + (val >> 4);
+			if(lowNibble > 9)
+			{
+
+				lowNibble += 6;
+				highNibble++;
+			}
+			if(highNibble > 9)
+			{
+				highNibble += 6;
+			}
+
+			Byte sum = (Byte)((highNibble << 4) | (lowNibble & 0x0F));
+			this.C = highNibble > 15;
+			this.Z = sum == 0;
+			this.N = ((sum & 0x80) != 0);
+			this.V = (((A ^ sum) & (val ^ sum) & 0x80) != 0);
+			this.A = sum;
+		}
+		else
+		{
+			bool sameBits = ((this.A ^ val) & NegativeFlagBit) == 0;
+			Word sum = (Word)this.A + (Word)val + (Word)this.C;
+			this.A = (Byte)sum;
+			this.SetLoadFlags(.A);
+			this.C = sum > 0xFF;
+			this.V = sameBits && ((this.A ^ val) & NegativeFlagBit) != 0;
+		}
 	}
 
 	public void SubtractToAccumulator(Byte val)
@@ -875,7 +954,35 @@ class CPU
 		this.V = possibleOverflow && val >> 7 == this.A >> 7;
 		if(this.V)
 			this.C = false; // "If overflow occurs the carry bit is clear, this enables multiple byte subtraction to be performed."*/
-		AddToAccumulator(~val);
+		if(this.D && testmode)
+		{
+			int lowNibble = (A & 0x0F) - (val & 0x0F) - (1 - (Byte)this.C);
+			int highNibble = (A >> 4) - (val >> 4);
+
+			if (lowNibble < 0)
+			{
+			    lowNibble -= 6;
+			    highNibble--;
+			}
+
+			if (highNibble < 0)
+			{
+			    highNibble -= 6;
+			}
+
+			Byte result = (Byte)(((highNibble & 0x0F) << 4) | (lowNibble & 0x0F));
+
+
+			this.C = highNibble >= 0;
+			this.Z = result == 0;
+			this.N = (result & 0x80) != 0;
+			this.V = ((A ^ result) & (A ^ val) & 0x80) != 0;
+
+
+			A = result;
+		}
+		else
+			AddToAccumulator(~val);
 	}
 
 	public void SubtractToAccumulator(LoadAdressingMode R, Word addr)
@@ -972,7 +1079,7 @@ class CPU
 		case .X: val1 = this.X;
 		case .Y: val1 = this.Y;
 		case .A: val1 = this.A;
-		case .M(let addr, let l): val1 = this.ReadByte(addr, l, true);
+		case .M(let addr, let l): val1 = this.ReadByte(addr, l, true); //Console.WriteLine($"first val is in address: {addr} (0x{addr:X4})");
 		}
 
 		Byte val2;
@@ -981,11 +1088,16 @@ class CPU
 		case .X: val2 = this.X;
 		case .Y: val2 = this.Y;
 		case .A: val2 = this.A;
-		case .M(let addr, let l): val2 = this.ReadByte(addr, l, true);
+		case .M(let addr, let l): val2 = this.ReadByte(addr, l, true); /*Console.WriteLine($"second val is in address: {addr} (0x{addr:X4})");*/
 		}
+
+		if(verbose)
+			Console.WriteLine($"Comparing value {val1} with {val2}");
 
 		this.C = val1 >= val2;
 		this.Z = val1 == val2;
+		if(verbose && val1 != val2)
+			Console.WriteLine("Values were different");
 		this.N = (val1 - val2) & 0b10000000;
 	}
 
@@ -1007,6 +1119,8 @@ class CPU
 	{
 		var addr;
 		addr += index;
+		if(verbose)
+			Console.WriteLine($"Read {addr} (0x{addr:X4}");
 		return this.ReadWord(addr);
 	}
 
@@ -1034,6 +1148,8 @@ class CPU
 					cycles--;
 				
 			}
+			if(verbose)
+				Console.WriteLine($"Reading absolute value at {f} (0x{f:X4}");
 			return (*this.memory)[f];
 		case .IndirectX:
 			Word fAddress = this.ReadByte(addr + this.X, .ZeroPage(0), consume);
@@ -1073,8 +1189,10 @@ class CPU
 		case .Absolute(let index): addr = this.FetchWord() + (Word)index; if (index > 0) cycles--;
 		}
 		 Byte val = this.ReadByte(addr, .Absolute(0));
-		 (*this.memory)[addr] = op(val);
-		 SetLoadFlags(val);
+		 Byte newval = (*this.memory)[addr] = op(val);
+		 if(verbose)
+		 	Console.WriteLine($"Wrote {val} to address: {addr:X4}");
+		 SetLoadFlags(newval);
 		 cycles-=3;
 	}
 
@@ -1122,7 +1240,7 @@ class CPU
 		{
 		case .ZeroPage(let index): this.StoreRegisterToZeroPage(R, this.FetchByte(), index);
 		case .Absolute(let index): this.StoreRegisterToMemory(R, this.FetchWord(), index);
-		case .IndirectX: this.StoreRegisterToMemory(R, this.ReadWordFromZeroPage(this.FetchByte(), this.X)); cycles--; // yeah
+		case .IndirectX: this.StoreRegisterToMemory(R, (this.ReadWordFromZeroPage(this.FetchByte(), this.X))); cycles--; // yeah
 		case .IndirectY: this.StoreRegisterToMemory(R, this.ReadWordFromZeroPage(this.FetchByte()), this.Y);
 		}
 	}
@@ -1177,10 +1295,16 @@ class CPU
 		{
 		case .A:
 			(*this.memory)[finalAddr] = this.A;
+			if (verbose)
+				Console.WriteLine($"Storing {this.A}");
 		case .X:
 			(*this.memory)[finalAddr] = this.X;
+			if (verbose)
+				Console.WriteLine($"Storing {this.X}");
 		case .Y:
 			(*this.memory)[finalAddr] = this.Y;
+			if (verbose)
+				Console.WriteLine($"Storing {this.Y}");
 		}
 		this.cycles--; // this one is for the write
 	}
@@ -1199,19 +1323,46 @@ class CPU
 		return startCycles - this.cycles;
 	}
 
-	public void Run(Word PCStart = resetVector, bool verbose = false)
+	public void Run(Word PCStart = resetVector, bool verbose = false, bool testmode = false)
 	{
+		this.testmode = testmode;
+		this.verbose = verbose;
 		this.Reset(PCStart);
 		if(verbose)
 			Console.WriteLine($"starting at PC = {this.PC}");
 		//this.PC = resetVector; // may wanna call reset or something
-		while(this.PC < 0xFFFF) // be better than that and add break
+		while(this.PC < 0xFFFF && !exit) // be better than that and add break
 		{
-			this.Tick(verbose);
+			this.Tick();
 		}
+
+		Console.WriteLine("Exit :)");
 	}
 
-	public void RunNextInstruction(bool verbose = false)
+	public void LoadSavestate(String path, bool verbose = false)
+	{
+		CPUData d = .(path);
+		this.A = d.A;
+		this.X = d.X;
+		this.Y = d.Y;
+		this.Status = d.S;
+		this.SP = d.SP;
+		this.PC = d.PC;
+		this.cycles = d.cycles;
+		this.totalCycles = d.totalCycles;
+		this.verbose = verbose;
+		this.memory.HardLoadProgram(d.memory);
+		this.exit = false;
+
+		while(this.PC < 0xFFFF && !exit) // be better than that and add break
+		{
+			this.Tick();
+		}
+
+		Console.WriteLine("Exit :)");
+	}
+
+	public void RunNextInstruction()
 	{
 		Byte instruction = this.FetchByte();
 		var r = AST.codes.GetKey(scope .(instruction));
@@ -1220,19 +1371,93 @@ class CPU
 		String instStr = AST.codes.GetKey(scope .(instruction)).Value.instruction;
 
 		if (verbose)
-			Console.WriteLine($"Running instruction {instStr}");
+			Console.WriteLine($"Running instruction {instStr} (0x{instruction:X2}) at PC = {this.PC} (0x{this.PC:X4})");
 		this.instructions[instruction](this);
 	}
 
 
 
-	public void Tick(bool verbose = false)
+	public void Tick()
 	{
 		if(verbose)
 			Console.WriteLine("Tick");
 		this.cycles++;
 		if (this.cycles >= 0)
-			this.RunNextInstruction(verbose);
+			this.RunNextInstruction();
+		else
+			this.totalCycles++;
+		if(this.totalCycles % 65536 == 0) 
+			Console.WriteLine($"total Cycles at {this.totalCycles}");
+		if(this.totalCycles > 100000000)
+			Console.WriteLine("cycles out of bounds?");
+		if(this.totalCycles > 56736000 - 100)
+		{
+			//Console.WriteLine("nearing error, saving cpu and mem status");
+			//CPUData d = .(this);
+			//d.Export("save.cpu");
+		}	
 	}
 	
+}
+
+
+public struct CPUData
+{
+	public Byte A, X, Y, S;
+	public Byte SP;
+	public Word PC;
+	public int cycles;
+	public uint64 totalCycles;
+	public Byte[64 * 1024] memory;
+
+	public this(CPU cpu)
+	{
+		this.A = cpu.A;
+		this.X = cpu.X;
+		this.Y = cpu.Y;
+		this.S = cpu.Status;
+		this.SP = cpu.SP;
+		this.PC = cpu.PC;
+		this.cycles = cpu.cycles;
+		this.totalCycles = cpu.totalCycles;
+		this.memory = cpu.memory.data;
+	}
+
+	public this(String path)
+	{
+
+		BufferedFileStream stream = scope .();
+		stream.Open(path, .Read);
+
+		this.A = stream.Read<Byte>();
+		this.X = stream.Read<Byte>();
+		this.Y = stream.Read<Byte>();
+		this.S = stream.Read<Byte>();
+		this.SP = stream.Read<Byte>();
+		this.PC = stream.Read<Word>();
+		this.cycles = stream.Read<int>();
+		this.totalCycles = stream.Read<uint64>();
+		this.memory = stream.Read<Byte[64*1024]>();
+	}
+
+	public Result<void, String> Export(String outPath)
+	{
+		BufferedFileStream stream = scope .();
+		var r = stream.Create(outPath, .Write);
+		if (r case .Err(let err))
+			return .Err(r.ToString(..scope .()));
+
+		stream.Write(this.A);
+		stream.Write(this.X);
+		stream.Write(this.Y);
+		stream.Write(this.S);
+		stream.Write(this.SP);
+		stream.Write(this.PC);
+		stream.Write(this.cycles);
+		stream.Write(this.totalCycles);
+
+		stream.Write(this.memory); // can this work ??
+
+		return .Ok;
+	}
 }
